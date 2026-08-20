@@ -1,0 +1,65 @@
+[
+  {
+    "id": "SHIP-001",
+    "origin": "P6",
+    "destination": "W1",
+    "cargo_tons": 42.0,
+    "deadline": "2026-09-05T06:26:42.655202+00:00",
+    "budget_per_ton": 120.0,
+    "priority": "high"
+  },
+  {
+    "id": "SHIP-002",
+    "origin": "P3",
+    "destination": "C4",
+    "cargo_tons": 18.0,
+    "deadline": "2026-08-12T06:26:42.655202+00:00",
+    "budget_per_ton": 60.0,
+    "priority": "standard"
+  },
+  {
+    "id": "SHIP-003",
+    "origin": "S6",
+    "destination": "W1",
+    "cargo_tons": 25.0,
+    "deadline": "2026-08-10T06:26:42.655202+00:00",
+    "budget_per_ton": 55.0,
+    "priority": "critical"
+  },
+  {
+    "id": "SHIP-004",
+    "origin": "S7",
+    "destination": "C3",
+    "cargo_tons": 8.0,
+    "deadline": "2026-08-09T06:26:42.655202+00:00",
+    "budget_per_ton": 25.0,
+    "priority": "high"
+  },
+  {
+    "id": "SHIP-005",
+    "origin": "S1",
+    "destination": "C2",
+    "cargo_tons": 60.0,
+    "deadline": "2026-09-10T06:26:42.655202+00:00",
+    "budget_per_ton": 100.0,
+    "priority": "standard"
+  },
+  {
+    "id": "SHIP-006",
+    "origin": "P6",
+    "destination": "C4",
+    "cargo_tons": 35.0,
+    "deadline": "2026-08-20T06:26:42.655202+00:00",
+    "budget_per_ton": 90.0,
+    "priority": "high"
+  },
+  {
+    "id": "SHIP-007",
+    "origin": "P2",
+    "destination": "C1",
+    "cargo_tons": 22.0,
+    "deadline": "2026-08-16T06:26:42.655202+00:00",
+    "budget_per_ton": 70.0,
+    "priority": "standard"
+  }
+]

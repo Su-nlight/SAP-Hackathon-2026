@@ -1,0 +1,1080 @@
+{
+  "nodes": {
+    "S1": {
+      "id": "S1",
+      "name": "Shanghai Fabrics Co.",
+      "type": "supplier",
+      "location": {
+        "lat": 31.23,
+        "lon": 121.47
+      }
+    },
+    "S2": {
+      "id": "S2",
+      "name": "Shenzhen Electronics",
+      "type": "supplier",
+      "location": {
+        "lat": 22.54,
+        "lon": 114.06
+      }
+    },
+    "S3": {
+      "id": "S3",
+      "name": "Singapore Parts Hub",
+      "type": "supplier",
+      "location": {
+        "lat": 1.35,
+        "lon": 103.82
+      }
+    },
+    "S4": {
+      "id": "S4",
+      "name": "Rotterdam Chemicals",
+      "type": "supplier",
+      "location": {
+        "lat": 51.92,
+        "lon": 4.48
+      }
+    },
+    "S5": {
+      "id": "S5",
+      "name": "Hamburg Machinery",
+      "type": "supplier",
+      "location": {
+        "lat": 53.55,
+        "lon": 9.99
+      }
+    },
+    "S6": {
+      "id": "S6",
+      "name": "Pune Auto Parts",
+      "type": "supplier",
+      "location": {
+        "lat": 18.52,
+        "lon": 73.86
+      }
+    },
+    "S7": {
+      "id": "S7",
+      "name": "Bengaluru Semiconductors",
+      "type": "supplier",
+      "location": {
+        "lat": 12.97,
+        "lon": 77.59
+      }
+    },
+    "S8": {
+      "id": "S8",
+      "name": "Chennai Textiles",
+      "type": "supplier",
+      "location": {
+        "lat": 13.08,
+        "lon": 80.27
+      }
+    },
+    "F1": {
+      "id": "F1",
+      "name": "Pune Assembly Plant",
+      "type": "factory",
+      "location": {
+        "lat": 18.52,
+        "lon": 73.86
+      }
+    },
+    "F2": {
+      "id": "F2",
+      "name": "Bengaluru Fab Plant",
+      "type": "factory",
+      "location": {
+        "lat": 12.97,
+        "lon": 77.59
+      }
+    },
+    "F3": {
+      "id": "F3",
+      "name": "Chennai Unit",
+      "type": "factory",
+      "location": {
+        "lat": 13.08,
+        "lon": 80.27
+      }
+    },
+    "F4": {
+      "id": "F4",
+      "name": "Gurugram Packaging",
+      "type": "factory",
+      "location": {
+        "lat": 28.46,
+        "lon": 77.03
+      }
+    },
+    "W1": {
+      "id": "W1",
+      "name": "Delhi NCR DC",
+      "type": "warehouse",
+      "location": {
+        "lat": 28.61,
+        "lon": 77.21
+      }
+    },
+    "W2": {
+      "id": "W2",
+      "name": "Mumbai DC",
+      "type": "warehouse",
+      "location": {
+        "lat": 19.08,
+        "lon": 72.88
+      }
+    },
+    "W3": {
+      "id": "W3",
+      "name": "Chennai DC",
+      "type": "warehouse",
+      "location": {
+        "lat": 13.08,
+        "lon": 80.27
+      }
+    },
+    "W4": {
+      "id": "W4",
+      "name": "Bengaluru DC",
+      "type": "warehouse",
+      "location": {
+        "lat": 12.97,
+        "lon": 77.59
+      }
+    },
+    "P1": {
+      "id": "P1",
+      "name": "Nhava Sheva (Mumbai)",
+      "type": "port",
+      "location": {
+        "lat": 18.95,
+        "lon": 72.95
+      }
+    },
+    "P2": {
+      "id": "P2",
+      "name": "Mundra Port",
+      "type": "port",
+      "location": {
+        "lat": 22.75,
+        "lon": 69.7
+      }
+    },
+    "P3": {
+      "id": "P3",
+      "name": "Chennai Port",
+      "type": "port",
+      "location": {
+        "lat": 13.1,
+        "lon": 80.3
+      }
+    },
+    "P4": {
+      "id": "P4",
+      "name": "Kochi Port",
+      "type": "port",
+      "location": {
+        "lat": 9.97,
+        "lon": 76.28
+      }
+    },
+    "P5": {
+      "id": "P5",
+      "name": "Kolkata Port",
+      "type": "port",
+      "location": {
+        "lat": 22.55,
+        "lon": 88.3
+      }
+    },
+    "P6": {
+      "id": "P6",
+      "name": "Shanghai Port",
+      "type": "port",
+      "location": {
+        "lat": 31.23,
+        "lon": 121.47
+      }
+    },
+    "P7": {
+      "id": "P7",
+      "name": "Singapore Port",
+      "type": "port",
+      "location": {
+        "lat": 1.26,
+        "lon": 103.84
+      }
+    },
+    "P8": {
+      "id": "P8",
+      "name": "Rotterdam Port",
+      "type": "port",
+      "location": {
+        "lat": 51.95,
+        "lon": 4.14
+      }
+    },
+    "P9": {
+      "id": "P9",
+      "name": "Suez Canal",
+      "type": "port",
+      "location": {
+        "lat": 30.04,
+        "lon": 32.55
+      }
+    },
+    "P10": {
+      "id": "P10",
+      "name": "Jebel Ali (Dubai)",
+      "type": "port",
+      "location": {
+        "lat": 25.01,
+        "lon": 55.06
+      }
+    },
+    "A1": {
+      "id": "A1",
+      "name": "Mumbai Intl (BOM)",
+      "type": "airport",
+      "location": {
+        "lat": 19.09,
+        "lon": 72.87
+      }
+    },
+    "A2": {
+      "id": "A2",
+      "name": "Delhi Intl (DEL)",
+      "type": "airport",
+      "location": {
+        "lat": 28.56,
+        "lon": 77.1
+      }
+    },
+    "A3": {
+      "id": "A3",
+      "name": "Chennai Intl (MAA)",
+      "type": "airport",
+      "location": {
+        "lat": 12.99,
+        "lon": 80.17
+      }
+    },
+    "A4": {
+      "id": "A4",
+      "name": "Singapore Changi",
+      "type": "airport",
+      "location": {
+        "lat": 1.36,
+        "lon": 103.99
+      }
+    },
+    "R1": {
+      "id": "R1",
+      "name": "Delhi ICD (Tughlakabad)",
+      "type": "rail_hub",
+      "location": {
+        "lat": 28.5,
+        "lon": 77.3
+      }
+    },
+    "R2": {
+      "id": "R2",
+      "name": "Nagpur Rail Hub",
+      "type": "rail_hub",
+      "location": {
+        "lat": 21.15,
+        "lon": 79.09
+      }
+    },
+    "R3": {
+      "id": "R3",
+      "name": "Vijayawada Rail Hub",
+      "type": "rail_hub",
+      "location": {
+        "lat": 16.51,
+        "lon": 80.65
+      }
+    },
+    "R4": {
+      "id": "R4",
+      "name": "Pune Rail Terminal",
+      "type": "rail_hub",
+      "location": {
+        "lat": 18.53,
+        "lon": 73.85
+      }
+    },
+    "C1": {
+      "id": "C1",
+      "name": "Delhi Retailer",
+      "type": "customer",
+      "location": {
+        "lat": 28.65,
+        "lon": 77.22
+      }
+    },
+    "C2": {
+      "id": "C2",
+      "name": "Mumbai Retailer",
+      "type": "customer",
+      "location": {
+        "lat": 19.08,
+        "lon": 72.88
+      }
+    },
+    "C3": {
+      "id": "C3",
+      "name": "Bengaluru Retailer",
+      "type": "customer",
+      "location": {
+        "lat": 12.97,
+        "lon": 77.59
+      }
+    },
+    "C4": {
+      "id": "C4",
+      "name": "Hyderabad Retailer",
+      "type": "customer",
+      "location": {
+        "lat": 17.39,
+        "lon": 78.49
+      }
+    }
+  },
+  "edges": {
+    "E01": {
+      "id": "E01",
+      "source": "P6",
+      "target": "P7",
+      "mode": "sea",
+      "distance_km": 4000,
+      "base_time_hours": 264,
+      "base_cost_per_ton": 30,
+      "capacity": 1.0,
+      "reliability": 0.92,
+      "co2_per_ton_km": 0.01
+    },
+    "E02": {
+      "id": "E02",
+      "source": "P7",
+      "target": "P9",
+      "mode": "sea",
+      "distance_km": 8000,
+      "base_time_hours": 500,
+      "base_cost_per_ton": 60,
+      "capacity": 1.0,
+      "reliability": 0.88,
+      "co2_per_ton_km": 0.01
+    },
+    "E03": {
+      "id": "E03",
+      "source": "P9",
+      "target": "P8",
+      "mode": "sea",
+      "distance_km": 6000,
+      "base_time_hours": 350,
+      "base_cost_per_ton": 45,
+      "capacity": 1.0,
+      "reliability": 0.9,
+      "co2_per_ton_km": 0.01
+    },
+    "E04": {
+      "id": "E04",
+      "source": "P9",
+      "target": "P1",
+      "mode": "sea",
+      "distance_km": 4000,
+      "base_time_hours": 250,
+      "base_cost_per_ton": 35,
+      "capacity": 1.0,
+      "reliability": 0.87,
+      "co2_per_ton_km": 0.01
+    },
+    "E05": {
+      "id": "E05",
+      "source": "P7",
+      "target": "P3",
+      "mode": "sea",
+      "distance_km": 2900,
+      "base_time_hours": 168,
+      "base_cost_per_ton": 28,
+      "capacity": 1.0,
+      "reliability": 0.91,
+      "co2_per_ton_km": 0.01
+    },
+    "E06": {
+      "id": "E06",
+      "source": "P7",
+      "target": "P1",
+      "mode": "sea",
+      "distance_km": 3700,
+      "base_time_hours": 220,
+      "base_cost_per_ton": 32,
+      "capacity": 1.0,
+      "reliability": 0.89,
+      "co2_per_ton_km": 0.01
+    },
+    "E07": {
+      "id": "E07",
+      "source": "P1",
+      "target": "P2",
+      "mode": "sea",
+      "distance_km": 700,
+      "base_time_hours": 48,
+      "base_cost_per_ton": 12,
+      "capacity": 1.0,
+      "reliability": 0.9,
+      "co2_per_ton_km": 0.01
+    },
+    "E08": {
+      "id": "E08",
+      "source": "P2",
+      "target": "P10",
+      "mode": "sea",
+      "distance_km": 1700,
+      "base_time_hours": 96,
+      "base_cost_per_ton": 20,
+      "capacity": 1.0,
+      "reliability": 0.88,
+      "co2_per_ton_km": 0.01
+    },
+    "E09": {
+      "id": "E09",
+      "source": "P10",
+      "target": "P9",
+      "mode": "sea",
+      "distance_km": 3800,
+      "base_time_hours": 240,
+      "base_cost_per_ton": 35,
+      "capacity": 1.0,
+      "reliability": 0.87,
+      "co2_per_ton_km": 0.01
+    },
+    "E10": {
+      "id": "E10",
+      "source": "P6",
+      "target": "P8",
+      "mode": "sea",
+      "distance_km": 19000,
+      "base_time_hours": 700,
+      "base_cost_per_ton": 80,
+      "capacity": 1.0,
+      "reliability": 0.85,
+      "co2_per_ton_km": 0.01
+    },
+    "E11": {
+      "id": "E11",
+      "source": "P8",
+      "target": "P3",
+      "mode": "sea",
+      "distance_km": 13500,
+      "base_time_hours": 560,
+      "base_cost_per_ton": 95,
+      "capacity": 1.0,
+      "reliability": 0.84,
+      "co2_per_ton_km": 0.01
+    },
+    "E12": {
+      "id": "E12",
+      "source": "P3",
+      "target": "P5",
+      "mode": "sea",
+      "distance_km": 1300,
+      "base_time_hours": 72,
+      "base_cost_per_ton": 18,
+      "capacity": 1.0,
+      "reliability": 0.89,
+      "co2_per_ton_km": 0.01
+    },
+    "E13": {
+      "id": "E13",
+      "source": "P4",
+      "target": "P7",
+      "mode": "sea",
+      "distance_km": 3400,
+      "base_time_hours": 200,
+      "base_cost_per_ton": 30,
+      "capacity": 1.0,
+      "reliability": 0.88,
+      "co2_per_ton_km": 0.01
+    },
+    "E14": {
+      "id": "E14",
+      "source": "P1",
+      "target": "P4",
+      "mode": "sea",
+      "distance_km": 800,
+      "base_time_hours": 52,
+      "base_cost_per_ton": 14,
+      "capacity": 1.0,
+      "reliability": 0.89,
+      "co2_per_ton_km": 0.01
+    },
+    "E15": {
+      "id": "E15",
+      "source": "P2",
+      "target": "P1",
+      "mode": "sea",
+      "distance_km": 700,
+      "base_time_hours": 48,
+      "base_cost_per_ton": 12,
+      "capacity": 1.0,
+      "reliability": 0.9,
+      "co2_per_ton_km": 0.01
+    },
+    "E16": {
+      "id": "E16",
+      "source": "P3",
+      "target": "P2",
+      "mode": "sea",
+      "distance_km": 1900,
+      "base_time_hours": 110,
+      "base_cost_per_ton": 24,
+      "capacity": 1.0,
+      "reliability": 0.86,
+      "co2_per_ton_km": 0.01
+    },
+    "E17": {
+      "id": "E17",
+      "source": "P2",
+      "target": "R1",
+      "mode": "rail",
+      "distance_km": 1200,
+      "base_time_hours": 36,
+      "base_cost_per_ton": 25,
+      "capacity": 1.0,
+      "reliability": 0.93,
+      "co2_per_ton_km": 0.006
+    },
+    "E18": {
+      "id": "E18",
+      "source": "P1",
+      "target": "R4",
+      "mode": "rail",
+      "distance_km": 180,
+      "base_time_hours": 8,
+      "base_cost_per_ton": 8,
+      "capacity": 1.0,
+      "reliability": 0.94,
+      "co2_per_ton_km": 0.006
+    },
+    "E19": {
+      "id": "E19",
+      "source": "P3",
+      "target": "R3",
+      "mode": "rail",
+      "distance_km": 500,
+      "base_time_hours": 16,
+      "base_cost_per_ton": 12,
+      "capacity": 1.0,
+      "reliability": 0.93,
+      "co2_per_ton_km": 0.006
+    },
+    "E20": {
+      "id": "E20",
+      "source": "R3",
+      "target": "R1",
+      "mode": "rail",
+      "distance_km": 1200,
+      "base_time_hours": 40,
+      "base_cost_per_ton": 26,
+      "capacity": 1.0,
+      "reliability": 0.91,
+      "co2_per_ton_km": 0.006
+    },
+    "E21": {
+      "id": "E21",
+      "source": "R4",
+      "target": "R1",
+      "mode": "rail",
+      "distance_km": 1500,
+      "base_time_hours": 48,
+      "base_cost_per_ton": 30,
+      "capacity": 1.0,
+      "reliability": 0.9,
+      "co2_per_ton_km": 0.006
+    },
+    "E22": {
+      "id": "E22",
+      "source": "R1",
+      "target": "F4",
+      "mode": "rail",
+      "distance_km": 50,
+      "base_time_hours": 3,
+      "base_cost_per_ton": 4,
+      "capacity": 1.0,
+      "reliability": 0.95,
+      "co2_per_ton_km": 0.006
+    },
+    "E23": {
+      "id": "E23",
+      "source": "P5",
+      "target": "R1",
+      "mode": "rail",
+      "distance_km": 1500,
+      "base_time_hours": 55,
+      "base_cost_per_ton": 32,
+      "capacity": 1.0,
+      "reliability": 0.89,
+      "co2_per_ton_km": 0.006
+    },
+    "E24": {
+      "id": "E24",
+      "source": "P1",
+      "target": "R2",
+      "mode": "rail",
+      "distance_km": 700,
+      "base_time_hours": 26,
+      "base_cost_per_ton": 20,
+      "capacity": 1.0,
+      "reliability": 0.92,
+      "co2_per_ton_km": 0.006
+    },
+    "E25": {
+      "id": "E25",
+      "source": "R2",
+      "target": "R1",
+      "mode": "rail",
+      "distance_km": 800,
+      "base_time_hours": 30,
+      "base_cost_per_ton": 22,
+      "capacity": 1.0,
+      "reliability": 0.92,
+      "co2_per_ton_km": 0.006
+    },
+    "E26": {
+      "id": "E26",
+      "source": "S6",
+      "target": "F1",
+      "mode": "road",
+      "distance_km": 60,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 4,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E27": {
+      "id": "E27",
+      "source": "S7",
+      "target": "F2",
+      "mode": "road",
+      "distance_km": 40,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E28": {
+      "id": "E28",
+      "source": "S8",
+      "target": "F3",
+      "mode": "road",
+      "distance_km": 50,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 3.5,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E29": {
+      "id": "E29",
+      "source": "F1",
+      "target": "W2",
+      "mode": "road",
+      "distance_km": 150,
+      "base_time_hours": 5,
+      "base_cost_per_ton": 10,
+      "capacity": 1.0,
+      "reliability": 0.95,
+      "co2_per_ton_km": 0.08
+    },
+    "E30": {
+      "id": "E30",
+      "source": "F2",
+      "target": "W4",
+      "mode": "road",
+      "distance_km": 25,
+      "base_time_hours": 1.2,
+      "base_cost_per_ton": 2.5,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E31": {
+      "id": "E31",
+      "source": "F3",
+      "target": "W3",
+      "mode": "road",
+      "distance_km": 30,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E32": {
+      "id": "E32",
+      "source": "F4",
+      "target": "W1",
+      "mode": "road",
+      "distance_km": 30,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E33": {
+      "id": "E33",
+      "source": "W1",
+      "target": "C1",
+      "mode": "road",
+      "distance_km": 30,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.97,
+      "co2_per_ton_km": 0.08
+    },
+    "E34": {
+      "id": "E34",
+      "source": "W2",
+      "target": "C2",
+      "mode": "road",
+      "distance_km": 40,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.97,
+      "co2_per_ton_km": 0.08
+    },
+    "E35": {
+      "id": "E35",
+      "source": "W4",
+      "target": "C3",
+      "mode": "road",
+      "distance_km": 25,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.97,
+      "co2_per_ton_km": 0.08
+    },
+    "E36": {
+      "id": "E36",
+      "source": "W3",
+      "target": "C4",
+      "mode": "road",
+      "distance_km": 600,
+      "base_time_hours": 14,
+      "base_cost_per_ton": 18,
+      "capacity": 1.0,
+      "reliability": 0.92,
+      "co2_per_ton_km": 0.08
+    },
+    "E37": {
+      "id": "E37",
+      "source": "P2",
+      "target": "W1",
+      "mode": "road",
+      "distance_km": 1100,
+      "base_time_hours": 24,
+      "base_cost_per_ton": 35,
+      "capacity": 1.0,
+      "reliability": 0.9,
+      "co2_per_ton_km": 0.08
+    },
+    "E38": {
+      "id": "E38",
+      "source": "P1",
+      "target": "W2",
+      "mode": "road",
+      "distance_km": 30,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E39": {
+      "id": "E39",
+      "source": "P3",
+      "target": "W3",
+      "mode": "road",
+      "distance_km": 15,
+      "base_time_hours": 1,
+      "base_cost_per_ton": 2,
+      "capacity": 1.0,
+      "reliability": 0.97,
+      "co2_per_ton_km": 0.08
+    },
+    "E40": {
+      "id": "E40",
+      "source": "R3",
+      "target": "W4",
+      "mode": "road",
+      "distance_km": 500,
+      "base_time_hours": 14,
+      "base_cost_per_ton": 16,
+      "capacity": 1.0,
+      "reliability": 0.91,
+      "co2_per_ton_km": 0.08
+    },
+    "E41": {
+      "id": "E41",
+      "source": "R1",
+      "target": "W1",
+      "mode": "road",
+      "distance_km": 40,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 3.5,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E42": {
+      "id": "E42",
+      "source": "P6",
+      "target": "A2",
+      "mode": "air",
+      "distance_km": 5000,
+      "base_time_hours": 7,
+      "base_cost_per_ton": 450,
+      "capacity": 1.0,
+      "reliability": 0.95,
+      "co2_per_ton_km": 1.3
+    },
+    "E43": {
+      "id": "E43",
+      "source": "P7",
+      "target": "A1",
+      "mode": "air",
+      "distance_km": 3900,
+      "base_time_hours": 6,
+      "base_cost_per_ton": 380,
+      "capacity": 1.0,
+      "reliability": 0.95,
+      "co2_per_ton_km": 1.3
+    },
+    "E44": {
+      "id": "E44",
+      "source": "A3",
+      "target": "P7",
+      "mode": "air",
+      "distance_km": 3000,
+      "base_time_hours": 5,
+      "base_cost_per_ton": 350,
+      "capacity": 1.0,
+      "reliability": 0.95,
+      "co2_per_ton_km": 1.3
+    },
+    "E45": {
+      "id": "E45",
+      "source": "A2",
+      "target": "P8",
+      "mode": "air",
+      "distance_km": 6400,
+      "base_time_hours": 9,
+      "base_cost_per_ton": 520,
+      "capacity": 1.0,
+      "reliability": 0.94,
+      "co2_per_ton_km": 1.3
+    },
+    "E46": {
+      "id": "E46",
+      "source": "A1",
+      "target": "P8",
+      "mode": "air",
+      "distance_km": 6900,
+      "base_time_hours": 9.5,
+      "base_cost_per_ton": 540,
+      "capacity": 1.0,
+      "reliability": 0.94,
+      "co2_per_ton_km": 1.3
+    },
+    "E47": {
+      "id": "E47",
+      "source": "W2",
+      "target": "A1",
+      "mode": "road",
+      "distance_km": 30,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E48": {
+      "id": "E48",
+      "source": "W1",
+      "target": "A2",
+      "mode": "road",
+      "distance_km": 25,
+      "base_time_hours": 1,
+      "base_cost_per_ton": 2.5,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E49": {
+      "id": "E49",
+      "source": "W3",
+      "target": "A3",
+      "mode": "road",
+      "distance_km": 20,
+      "base_time_hours": 1,
+      "base_cost_per_ton": 2.5,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E50": {
+      "id": "E50",
+      "source": "F1",
+      "target": "R4",
+      "mode": "rail",
+      "distance_km": 20,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 2,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.006
+    },
+    "E51": {
+      "id": "E51",
+      "source": "W4",
+      "target": "R3",
+      "mode": "rail",
+      "distance_km": 500,
+      "base_time_hours": 18,
+      "base_cost_per_ton": 14,
+      "capacity": 1.0,
+      "reliability": 0.92,
+      "co2_per_ton_km": 0.006
+    },
+    "E52": {
+      "id": "E52",
+      "source": "W3",
+      "target": "P3",
+      "mode": "road",
+      "distance_km": 15,
+      "base_time_hours": 1,
+      "base_cost_per_ton": 2,
+      "capacity": 1.0,
+      "reliability": 0.97,
+      "co2_per_ton_km": 0.08
+    },
+    "E53": {
+      "id": "E53",
+      "source": "W2",
+      "target": "P1",
+      "mode": "road",
+      "distance_km": 30,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E54": {
+      "id": "E54",
+      "source": "W1",
+      "target": "R1",
+      "mode": "road",
+      "distance_km": 40,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 3.5,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E55": {
+      "id": "E55",
+      "source": "P7",
+      "target": "A3",
+      "mode": "air",
+      "distance_km": 3000,
+      "base_time_hours": 5,
+      "base_cost_per_ton": 350,
+      "capacity": 1.0,
+      "reliability": 0.95,
+      "co2_per_ton_km": 1.3
+    },
+    "E61": {
+      "id": "E61",
+      "source": "A3",
+      "target": "W3",
+      "mode": "road",
+      "distance_km": 20,
+      "base_time_hours": 1,
+      "base_cost_per_ton": 2.5,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E56": {
+      "id": "E56",
+      "source": "S1",
+      "target": "P6",
+      "mode": "road",
+      "distance_km": 20,
+      "base_time_hours": 1,
+      "base_cost_per_ton": 2,
+      "capacity": 1.0,
+      "reliability": 0.97,
+      "co2_per_ton_km": 0.08
+    },
+    "E57": {
+      "id": "E57",
+      "source": "S2",
+      "target": "P6",
+      "mode": "road",
+      "distance_km": 60,
+      "base_time_hours": 2,
+      "base_cost_per_ton": 4,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E58": {
+      "id": "E58",
+      "source": "S3",
+      "target": "P7",
+      "mode": "road",
+      "distance_km": 30,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 3,
+      "capacity": 1.0,
+      "reliability": 0.97,
+      "co2_per_ton_km": 0.08
+    },
+    "E59": {
+      "id": "E59",
+      "source": "S4",
+      "target": "P8",
+      "mode": "road",
+      "distance_km": 40,
+      "base_time_hours": 1.5,
+      "base_cost_per_ton": 4,
+      "capacity": 1.0,
+      "reliability": 0.96,
+      "co2_per_ton_km": 0.08
+    },
+    "E60": {
+      "id": "E60",
+      "source": "S5",
+      "target": "P8",
+      "mode": "road",
+      "distance_km": 120,
+      "base_time_hours": 3,
+      "base_cost_per_ton": 6,
+      "capacity": 1.0,
+      "reliability": 0.95,
+      "co2_per_ton_km": 0.08
+    }
+  }
+}

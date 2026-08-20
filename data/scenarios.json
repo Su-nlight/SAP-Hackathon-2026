@@ -1,0 +1,53 @@
+[
+  {
+    "id": "suez-blockage",
+    "name": "Suez Canal Blockage (Ever Given style)",
+    "description": "A container vessel runs aground, closing the Suez Canal for 72h.",
+    "steps": [
+      {
+        "seq": 1,
+        "type": "BLOCKAGE",
+        "target_type": "node",
+        "target_id": "P9",
+        "severity": "full",
+        "expected_end_hours": 72,
+        "impact_delay_hours": 0,
+        "raw_text": "Vessel grounded in Suez Canal; transit suspended for ~72 hours."
+      }
+    ]
+  },
+  {
+    "id": "cyclone-chennai",
+    "name": "Cyclone closes Chennai Port",
+    "description": "Severe cyclone forces Chennai Port closure for 48h.",
+    "steps": [
+      {
+        "seq": 1,
+        "type": "WEATHER",
+        "target_type": "node",
+        "target_id": "P3",
+        "severity": "full",
+        "expected_end_hours": 48,
+        "impact_delay_hours": 0,
+        "raw_text": "Cyclone Mocha: Chennai Port shut, all berthing suspended."
+      }
+    ]
+  },
+  {
+    "id": "factory-fire",
+    "name": "Pune factory fire",
+    "description": "Fire halts the Pune assembly plant for 24h.",
+    "steps": [
+      {
+        "seq": 1,
+        "type": "FACTORY_SHUTDOWN",
+        "target_type": "node",
+        "target_id": "F1",
+        "severity": "full",
+        "expected_end_hours": 24,
+        "impact_delay_hours": 0,
+        "raw_text": "Fire at Pune Assembly Plant; production halted."
+      }
+    ]
+  }
+]
