@@ -1,0 +1,20 @@
+fastapi
+python-jose[cryptography]
+passlib[bcrypt]
+uvicorn[standard]
+pydantic
+pydantic-settings
+networkx
+sse-starlette
+langgraph
+langchain
+langchain-core
+langchain-openai
+langchain-anthropic
+langchain-groq
+langchain-ollama
+httpx
+# --- dev / test ---
+pytest
+pytest-asyncio
+respx
