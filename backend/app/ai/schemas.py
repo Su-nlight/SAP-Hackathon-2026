@@ -22,9 +22,18 @@ class DisruptionParse(BaseModel):
 
     @field_validator("expected_end", mode="before")
     @classmethod
-    def _empty_end_is_none(cls, v):
-        # LLMs love emitting "" instead of null for unknown fields.
-        return None if v in ("", None) else v
+    def _coerce_invalid_end(cls, v):
+        # LLMs emit "", "unknown", "N/A", "TBD" — coerce all to None.
+        if v is None or v == "":
+            return None
+        if isinstance(v, str):
+            try:
+                from datetime import datetime as _dt
+                _dt.fromisoformat(v.replace("Z", "+00:00"))
+                return v
+            except (ValueError, TypeError):
+                return None
+        return v
 
 
 class ImpactAssessment(BaseModel):
