@@ -20,7 +20,7 @@ class NetworkXEngine(GraphEngine):
     """
 
     def _build(self, network: Network, active_events: list[DisruptionEvent], alpha: float):
-        g = nx.DiGraph()
+        g = nx.MultiDiGraph()
         for nid in network.nodes:
             g.add_node(nid)
         for eid, edge in network.edges.items():

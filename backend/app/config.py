@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     ai_timeout_seconds: float = 15.0
     default_llm_provider: str = "omnirouter"
     default_llm_model: str = "auto"
-    omniroute_base_url: str = "http://omniroute:20128/v1"
+    omniroute_base_url: str = "http://localhost:20128/v1"
     omniroute_api_key: str = ""  # falls back to env OMNIROUTE_API_KEY
     default_temperature: float = 0.2
 
@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     sap_verify_tls: bool = False
     sap_sync_on_boot: bool = True
     sap_merge_nodes: bool = True
+    # --- auth ---
+    jwt_secret: str = "this-is~ouur~very-secreet=for+jwt-auth"          # REQUIRED in real deployments — generate with: openssl rand -hex 32
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 80
+    auth_mode: str = "auto"       # "mock" | "sap" | "auto" (auto = try SAP if connected, else mock)
+    mock_users_path: Path = BASE_DIR / "data" / "users.json"
 
     @property
     def omniroute_api_key_resolved(self) -> str:
