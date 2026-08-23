@@ -1,0 +1,64 @@
+"""Disruption lifecycle service: validate, append, apply, resolve."""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from ..domain.constants import DisruptionStatus
+from ..domain.models import DisruptionEvent, Network, Shipment
+from ..streaming.hub import SinkHub
+from ..store.event_log import EventLog
+from ..store.network_store import NetworkStore
+
+
+class DisruptionService:
+    def __init__(
+        self,
+        store: NetworkStore,
+        log: EventLog,
+        hub: SinkHub,
+    ) -> None:
+        self._store = store
+        self._log = log
+        self._hub = hub
+
+    def register(self, event: DisruptionEvent) -> DisruptionEvent:
+        """Append a disruption to the log and emit the created event."""
+        if self._log.get(event.id) is not None:
+            raise ValueError(f"Disruption {event.id} already exists (idempotency)")
+        self._log.append(event)
+        import asyncio
+
+        try:
+            asyncio.get_running_loop().create_task(
+                self._hub.publish({"type": "disruption.created", "data": event.model_dump(mode="json")})
+            )
+        except RuntimeError:
+            pass  # no running loop (e.g. tests) — event is in the log anyway
+        return event
+
+    def resolve(self, event_id: str) -> DisruptionEvent | None:
+        """Resolve a disruption: mark RESOLVED, emit network.healed."""
+        ev = self._log.get(event_id)
+        if ev is None:
+            return None
+        resolved = ev.model_copy(update={
+            "status": DisruptionStatus.RESOLVED,
+            "resolved_at": datetime.now().astimezone(),
+        })
+        self._log.append(resolved)
+        import asyncio
+
+        try:
+            asyncio.get_running_loop().create_task(
+                self._hub.publish({"type": "network.healed", "data": resolved.model_dump(mode="json")})
+            )
+        except RuntimeError:
+            pass
+        return resolved
+
+    def active(self) -> list[DisruptionEvent]:
+        return self._log.active()
+
+    def current_network(self) -> Network:
+        return self._store.current(self._log.active())

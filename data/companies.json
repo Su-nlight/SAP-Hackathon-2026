@@ -1,0 +1,14 @@
+[
+  {
+    "company_id": "acme",
+    "provider": "omnirouter",
+    "model": "auto",
+    "temperature": 0.2
+  },
+  {
+    "company_id": "globex",
+    "provider": "omnirouter",
+    "model": "auto/smart",
+    "temperature": 0.1
+  }
+]
