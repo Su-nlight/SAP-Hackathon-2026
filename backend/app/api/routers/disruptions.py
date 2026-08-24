@@ -77,7 +77,7 @@ async def ingest_raw_alert(
             status_code=503,
             detail="AI disabled (AI_ENABLED=false). Use POST /v1/disruptions with a structured event.",
         )
-    event_id = f"d-{uuid.uuid4().hex[:8]}"
+    event_id = f"d-{uuid.uuid4().hex}"
     company_id = identity.get("company_id", "acme")
     try:
         result = await agent.run(
