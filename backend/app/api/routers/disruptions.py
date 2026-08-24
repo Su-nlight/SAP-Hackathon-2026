@@ -198,21 +198,35 @@ async def get_disruption(
 async def approve_disruption(
     event_id: str,
     body: ApprovalIn,
-    agent: SupplyAgent = Depends(get_agent),
+    sap: SapService = Depends(get_sap_service),
 ):
-    """Resume the agent graph: approve (or reject with feedback) the plan."""
-    if not settings.ai_enabled:
-        raise HTTPException(status_code=503, detail="AI disabled.")
-    result = await agent.resume(
-        thread_id=f"agent-{event_id}",
-        approved=body.approved,
-        feedback=body.feedback,
-    )
-    return {
-        "thread_id": result["thread_id"],
-        "approved": body.approved,
-        "status": result["state"].get("status"),
-    }
+    if not body.approved:
+        raise HTTPException(
+            status_code=400,
+            detail="SAP approval endpoint currently supports approval only.",
+        )
+
+    try:
+        success = sap.approve_disruption(event_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="SAP approval failed.",
+            )
+
+        return {
+            "message": "Disruption approved in SAP",
+            "event_id": event_id,
+            "approved": True,
+            "status": "approved",
+        }
+
+    except SapConnectionError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"SAP connection failed: {exc}",
+        ) from exc
 
 
 @router.get("/{event_id}/state")
@@ -241,12 +255,25 @@ async def get_disruption_state(
 @router.delete("/{event_id}")
 async def resolve_disruption(
     event_id: str,
-    ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
 ):
-    """Resolve a disruption — rolls back effects, emits network.healed."""
-    resolved = ds.resolve(event_id)
-    if resolved is None:
-        raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
-    BackgroundTasks.add_task( sap.mirror_event, resolved, action="resolved" )  # fire-and-forget
-    return {"event": resolved.model_dump(mode="json")}
+    try:
+        success = sap.resolve_disruption(event_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="SAP resolve operation failed.",
+            )
+
+        return {
+            "message": "Disruption resolved in SAP",
+            "event_id": event_id,
+            "status": "resolved",
+        }
+
+    except SapConnectionError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"SAP connection failed: {exc}",
+        ) from exc
