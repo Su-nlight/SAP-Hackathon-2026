@@ -244,7 +244,7 @@ class SapService:
             )
             nearest = min(
                 transport,
-                key=lambda t: haversine_km(point, t.location),
+                key = lambda t: haversine_km(point, t.location),
             )
 
             dist = haversine_km(
@@ -311,6 +311,7 @@ class SapService:
     def mirror_event(
         self,
         event: DisruptionEvent,
+        company_id: str = "acme",
         action: str = "created",
     ) -> bool:
         """Mirror a disruption into ZHEAL_DISRUPTION."""
@@ -321,7 +322,7 @@ class SapService:
         try:
             row = SapDisruptionRow(
                 event_id=event.id,
-                company_id=company_id,
+                company_id = company_id,
                 disrupt_type=event.type.value,
                 target_type=event.target_type,
                 target_node=event.target_id,
