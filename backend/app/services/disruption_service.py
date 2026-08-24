@@ -57,8 +57,21 @@ class DisruptionService:
             pass
         return resolved
 
+    def get(self, event_id: str) -> DisruptionEvent | None:
+        """Retrieve a disruption event by its ID."""
+        return self._log.get(event_id)
+
+    def all(self) -> list[DisruptionEvent]:
+        """Retrieve all disruption events in the log."""
+        return self._log.all()
+
     def active(self) -> list[DisruptionEvent]:
+        """Retrieve currently active disruption events."""
         return self._log.active()
+
+    def resolved(self) -> list[DisruptionEvent]:
+        """Retrieve resolved disruption events."""
+        return [e for e in self._log.all() if e.status.value == "resolved"]
 
     def current_network(self) -> Network:
         return self._store.current(self._log.active())

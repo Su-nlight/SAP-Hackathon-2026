@@ -108,10 +108,12 @@ async def list_disruptions(
     status: str | None = Query(default=None, pattern="^(active|resolved)$"),
     ds: DisruptionService = Depends(get_disruption_service),
 ):
-    events = ds.active() if status == "active" else (
-        [e for e in ds._log.all() if e.status.value == "resolved"] if status == "resolved"
-        else ds._log.all()
-    )
+    if status == "active":
+        events = ds.active()
+    elif status == "resolved":
+        events = ds.resolved()
+    else:
+        events = ds.all()
     return {"disruptions": [e.model_dump(mode="json") for e in events]}
 
 
@@ -120,7 +122,7 @@ async def get_disruption(
     event_id: str,
     ds: DisruptionService = Depends(get_disruption_service),
 ):
-    event = ds._log.get(event_id)
+    event = ds.get(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
     return {"event": event.model_dump(mode="json")}
