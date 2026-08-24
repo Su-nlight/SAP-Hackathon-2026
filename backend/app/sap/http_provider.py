@@ -124,6 +124,8 @@ class S4HttpProvider(SapProvider):
                 url,
                 headers=headers,
                 json=json_body,
+                timeout=self._timeout,
+                verify=settings.sap_verify_tls,
             )
         except httpx.HTTPError as exc:
             raise SapConnectionError(
@@ -312,4 +314,3 @@ class S4HttpProvider(SapProvider):
 
 class SapConnectionError(RuntimeError):
     """Raised when the SAP system is unreachable or returns an error."""
-    pass

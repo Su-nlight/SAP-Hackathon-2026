@@ -93,7 +93,6 @@ class SapService:
         self._last_error: Optional[str] = None
         self._disruptions_mirrored = 0
         self._health_cache: Optional[SapHealth] = None
-
         if self._provider.name == "offline":
             self._last_error = getattr(
                 self._provider,
@@ -243,7 +242,6 @@ class SapService:
                     "material_count": 0,
                 },
             )
-
             nearest = min(
                 transport,
                 key=lambda t: haversine_km(point, t.location),
@@ -323,7 +321,7 @@ class SapService:
         try:
             row = SapDisruptionRow(
                 event_id=event.id,
-                company_id="acme",
+                company_id=company_id,
                 disrupt_type=event.type.value,
                 target_type=event.target_type,
                 target_node=event.target_id,
