@@ -42,7 +42,6 @@ class AuthService:
                 self._load_users(p)
                 return
 
-        # Default fallback if file is missing
         default_hash = hash_password("password123")
         self._users = {
             "acme_admin": {

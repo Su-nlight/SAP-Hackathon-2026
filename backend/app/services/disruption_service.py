@@ -1,8 +1,9 @@
 """Disruption lifecycle service: validate, append, apply, resolve."""
 from __future__ import annotations
 
+import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..domain.constants import DisruptionStatus
 from ..domain.models import DisruptionEvent, Network, Shipment
@@ -27,14 +28,13 @@ class DisruptionService:
         if self._log.get(event.id) is not None:
             raise ValueError(f"Disruption {event.id} already exists (idempotency)")
         self._log.append(event)
-        import asyncio
 
         try:
             asyncio.get_running_loop().create_task(
                 self._hub.publish({"type": "disruption.created", "data": event.model_dump(mode="json")})
             )
         except RuntimeError:
-            pass  # no running loop (e.g. tests) — event is in the log anyway
+            pass
         return event
 
     def resolve(self, event_id: str) -> DisruptionEvent | None:
@@ -44,10 +44,9 @@ class DisruptionService:
             return None
         resolved = ev.model_copy(update={
             "status": DisruptionStatus.RESOLVED,
-            "resolved_at": datetime.now().astimezone(),
+            "resolved_at": datetime.now(timezone.utc),
         })
         self._log.append(resolved)
-        import asyncio
 
         try:
             asyncio.get_running_loop().create_task(
