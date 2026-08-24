@@ -1,13 +1,6 @@
-"""HTTP/ICF provider: talks to the ABAP ICF service over plain JSON.
-
-JSON contract with the ABAP handler (zcl_zheal_http_handler):
-  * all keys camelCase ( /UI2/CL_JSON pretty_name='C' )
-  * endpoints under <S4_BASE_URL>/sap/zheal/...
-  * HTTP Basic auth, validated by the ICF logon procedure (basic auth)
-"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Optional
 
 import httpx
@@ -24,6 +17,16 @@ from .base import (
 DEFAULT_TIMEOUT = 10.0
 
 
+def _sap_ts(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return value[:22]
+
 def _dt(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
@@ -34,9 +37,8 @@ def _dt(value: Optional[str]) -> Optional[datetime]:
 
 
 class S4HttpProvider(SapProvider):
-    """Live S/4HANA over HTTP/ICF. Raises SapConnectionError on failure."""
 
-    name = "s4_http_icf"
+    name = "s4_http_odata"
 
     def __init__(
         self,
@@ -50,125 +52,263 @@ class S4HttpProvider(SapProvider):
         self._auth = (username, password)
         self._client = client
         self._timeout = timeout
+        self._csrf_token: Optional[str] = None
 
-    # ---- plumbing ---------------------------------------------------
-    def _url(self, path: str) -> str:
-        return f"{self._base}/sap/zheal/{path}"
+        self._service_url = (
+            f"{self._base}/sap/opu/odata/sap/ZHEAL_ODATA_SRV"
+        )
 
-    def _request(self, method: str, path: str, json_body: Optional[dict] = None) -> Any:
-        """Return parsed JSON or raise SapConnectionError with a readable reason."""
-        headers = {"X-SAP-Client": self._client}
+        self._session = httpx.Client(
+            auth=self._auth,
+            timeout=self._timeout,
+            verify=settings.sap_verify_tls,
+        )
+
+    def _fetch_csrf_token(self) -> None:
         try:
-            resp = httpx.request(
-                method,
-                self._url(path),
-                auth=self._auth,
-                headers=headers,
-                json=json_body,
-                timeout=self._timeout,
-                verify=False,  # college systems are typically plain HTTP; keep this configurable
+            response = self._session.get(
+                f"{self._service_url}/",
+                headers={
+                    "X-CSRF-Token": "Fetch",
+                    "Accept": "application/json",
+                    "sap-client": self._client,
+                },
             )
         except httpx.HTTPError as exc:
-            raise SapConnectionError(f"network error: {exc.__class__.__name__}: {exc}") from exc
-        if resp.status_code >= 400:
             raise SapConnectionError(
-                f"SAP returned HTTP {resp.status_code}: {resp.text[:200]}"
-            )
-        try:
-            return resp.json()
-        except ValueError as exc:
-            raise SapConnectionError(f"SAP returned non-JSON body: {resp.text[:200]}") from exc
+                f"network error: {exc.__class__.__name__}: {exc}"
+            ) from exc
 
-    # ---- provider interface -----------------------------------------
+        if response.status_code >= 400:
+            raise SapConnectionError(
+                f"SAP returned HTTP {response.status_code}: "
+                f"{response.text[:300]}"
+            )
+
+        token = response.headers.get("x-csrf-token")
+
+        if not token:
+            raise SapConnectionError(
+                "SAP did not return an X-CSRF-Token"
+            )
+
+        self._csrf_token = token
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        json_body: Optional[dict] = None,
+    ) -> Any:
+
+        method = method.upper()
+
+        url = f"{self._service_url}/{path.lstrip('/')}"
+
+        headers = {
+            "Accept": "application/json",
+            "sap-client": self._client,
+        }
+
+        if method in {"POST", "PUT", "PATCH", "DELETE"}:
+
+            if not self._csrf_token:
+                self._fetch_csrf_token()
+
+            headers["X-CSRF-Token"] = self._csrf_token
+            headers["Content-Type"] = "application/json"
+
+        try:
+            response = self._session.request(
+                method,
+                url,
+                headers=headers,
+                json=json_body,
+            )
+        except httpx.HTTPError as exc:
+            raise SapConnectionError(
+                f"network error: {exc.__class__.__name__}: {exc}"
+            ) from exc
+
+        if response.status_code == 403 and method in {
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+        }:
+            self._fetch_csrf_token()
+
+            headers["X-CSRF-Token"] = self._csrf_token
+
+            try:
+                response = self._session.request(
+                    method,
+                    url,
+                    headers=headers,
+                    json=json_body,
+                )
+            except httpx.HTTPError as exc:
+                raise SapConnectionError(
+                    f"network error: {exc.__class__.__name__}: {exc}"
+                ) from exc
+
+        if response.status_code >= 400:
+            raise SapConnectionError(
+                f"SAP returned HTTP {response.status_code}: "
+                f"{response.text[:300]}"
+            )
+
+        if not response.content:
+            return None
+
+        content_type = response.headers.get(
+            "content-type",
+            "",
+        ).lower()
+
+        if "json" not in content_type:
+            return response.text
+
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise SapConnectionError(
+                f"SAP returned invalid JSON: {response.text[:300]}"
+            ) from exc
+
     def health(self) -> SapHealth:
         try:
-            raw = self._request("GET", "health")
+            self._request("GET", "")
             return SapHealth(
                 ok=True,
-                system=raw.get("system", ""),
-                client=raw.get("client", self._client),
-                user=raw.get("user", ""),
-                time=_dt(raw.get("time")),
+                system="S/4HANA",
+                client=self._client,
             )
         except SapConnectionError as exc:
-            return SapHealth(ok=False, detail=str(exc))
-
-    def fetch_network(self) -> tuple[list[SapNodeInfo], list[SapMaterialInfo]]:
-        raw = self._request("GET", "network")
-        nodes: list[SapNodeInfo] = []
-        for p in raw.get("plants", []):
-            nodes.append(SapNodeInfo(
-                id=str(p.get("id", "")),
-                name=str(p.get("name", "")),
-                kind="plant",
-                city=str(p.get("city", "")),
-                country=str(p.get("country", "")),
-                lat=p.get("lat"), lon=p.get("lon"),
-            ))
-        for c in raw.get("customers", []):
-            nodes.append(SapNodeInfo(
-                id=str(c.get("id", "")),
-                name=str(c.get("name", "")),
-                kind="customer",
-                city=str(c.get("city", "")),
-                country=str(c.get("country", "")),
-                lat=c.get("lat"), lon=c.get("lon"),
-            ))
-        materials = [
-            SapMaterialInfo(
-                material=str(m.get("material", "")),
-                description=str(m.get("description", "")),
-                uom=str(m.get("uom", "")),
-                weight_kg=m.get("weightKg"),
-                total_stock=m.get("totalStock"),
+            return SapHealth(
+                ok=False,
+                client=self._client,
+                detail=str(exc),
             )
-            for m in raw.get("materials", [])
-        ]
-        return nodes, materials
+
+    def fetch_network(
+        self,
+    ) -> tuple[list[SapNodeInfo], list[SapMaterialInfo]]:
+        raise SapConnectionError(
+            "Network/master-data OData endpoints are not "
+            "available in ZHEAL_ODATA_SRV yet"
+        )
 
     def list_disruptions(self) -> list[SapDisruptionRow]:
-        raw = self._request("GET", "disruptions")
+
+        raw = self._request(
+            "GET",
+            "ZHEAL_DISRUPTIONSet",
+        )
+
         rows: list[SapDisruptionRow] = []
-        for r in raw.get("disruptions", []):
-            rows.append(SapDisruptionRow(
-                event_id=str(r.get("eventId", "")),
-                company_id=str(r.get("companyId", "")),
-                disrupt_type=str(r.get("disruptType", "")),
-                target_type=str(r.get("targetType", "node")),
-                target_node=str(r.get("targetNode", "")),
-                severity=str(r.get("severity", "full")),
-                status=str(r.get("status", "")).lower(),
-                start_ts=r.get("startTs"), end_ts=r.get("endTs"),
-                created_at=r.get("createdAt"),
-                created_by=str(r.get("createdBy", "")),
-                approved_by=str(r.get("approvedBy", "")),
-                payload_json=str(r.get("payloadJson", "")),
-            ))
+
+        if not raw:
+            return rows
+
+        entries = (
+            raw.get("d", {}).get("results", [])
+            if isinstance(raw, dict)
+            else []
+        )
+
+        for r in entries:
+            rows.append(
+                SapDisruptionRow(
+                    event_id=str(r.get("EventId", "")),
+                    company_id=str(r.get("CompanyId", "")),
+                    disrupt_type=str(r.get("DisruptType", "")),
+                    target_type=str(
+                        r.get("TargetType", "node")
+                    ),
+                    target_node=str(
+                        r.get("TargetNode", "")
+                    ),
+                    severity=str(
+                        r.get("Severity", "full")
+                    ),
+                    status=str(
+                        r.get("Status", "new")
+                    ).lower(),
+                    start_ts=r.get("StartTs"),
+                    end_ts=r.get("EndTs"),
+                    created_at=r.get("CreatedAt"),
+                    created_by=str(
+                        r.get("CreatedBy", "")
+                    ),
+                    approved_by=str(
+                        r.get("ApprovedBy", "")
+                    ),
+                    payload_json=str(
+                        r.get("PayloadJson", "")
+                    ),
+                )
+            )
+
         return rows
 
-    def create_disruption(self, row: SapDisruptionRow) -> SapDisruptionRow:
+    def create_disruption(
+        self,
+        row: SapDisruptionRow,
+    ) -> SapDisruptionRow:
+
         body = {
-            "eventId": row.event_id,
-            "companyId": row.company_id,
-            "disruptType": row.disrupt_type,
-            "targetType": row.target_type,
-            "targetNode": row.target_node,
-            "severity": row.severity,
-            "status": row.status,
-            "startTs": row.start_ts,
-            "endTs": row.end_ts,
+            "EventId": row.event_id,
+            "CompanyId": row.company_id,
+            "DisruptType": row.disrupt_type,
+            "TargetType": row.target_type,
+            "TargetNode": row.target_node,
+            "Severity": row.severity,
+            "Status": row.status.upper(),
+            "StartTs": _sap_ts(row.start_ts),
+            "EndTs": _sap_ts(row.end_ts),
+            "CreatedBy": row.created_by,
+            "PayloadJson": row.payload_json,
         }
-        self._request("POST", "disruptions", json_body=body)
+
+        self._request(
+            "POST",
+            "ZHEAL_DISRUPTIONSet",
+            json_body=body,
+        )
+
         return row
 
-    def approve_disruption(self, event_id: str) -> bool:
-        self._request("POST", "disruptions/approve", json_body={"eventId": event_id})
+    def approve_disruption(
+        self,
+        event_id: str,
+    ) -> bool:
+
+        self._request(
+            "PUT",
+            f"ZHEAL_DISRUPTIONSet('{event_id}')",
+            json_body={
+                "Status": "APPROVED",
+            },
+        )
+
         return True
 
-    def resolve_disruption(self, event_id: str) -> bool:
-        self._request("POST", "disruptions/resolve", json_body={"eventId": event_id})
+    def resolve_disruption(
+        self,
+        event_id: str,
+    ) -> bool:
+
+        self._request(
+            "PUT",
+            f"ZHEAL_DISRUPTIONSet('{event_id}')",
+            json_body={
+                "Status": "RESOLVED",
+            },
+        )
+
         return True
 
 
 class SapConnectionError(RuntimeError):
-    """Raised when the SAP system is unreachable or returns an error."""
+    pass

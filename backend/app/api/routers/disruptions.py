@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 # from fastapi.concurrency import run_in_threadpool
@@ -13,6 +14,8 @@ from ...domain.models import DisruptionEvent
 from ...sap.service import SapService
 from ...services.disruption_service import DisruptionService
 from ..deps import get_agent, get_disruption_service, get_sap_service
+from ...sap.base import SapDisruptionRow
+from ...sap.http_provider import SapConnectionError
 
 router = APIRouter(prefix="/v1/disruptions", tags=["disruptions"])
 
@@ -30,40 +33,58 @@ class ApprovalIn(BaseModel):
 @router.post("", status_code=201)
 async def create_disruption(
     body: DisruptionEvent,
-    ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
-    agent: SupplyAgent = Depends(get_agent),
 ):
-    """Register a structured disruption event (mirrored to S/4HANA if connected)."""
     try:
-        event = ds.register(body)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    BackgroundTasks.add_task(sap.mirror_event, event, action="created")
+        row = SapDisruptionRow(
+            event_id=body.id,
+            company_id="acme",
+            disrupt_type=body.type.value,
+            target_type=body.target_type,
+            target_node=body.target_id,
+            severity=body.severity.value,
+            status="new",
+            start_ts=(
+                body.start_time.isoformat()
+                if body.start_time
+                else None
+            ),
+            end_ts=(
+                body.expected_end.isoformat()
+                if body.expected_end
+                else None
+            ),
+            created_by=settings.sap_username,
+            payload_json=json.dumps(
+                body.model_dump(mode="json"),
+                default=str,
+            )[:255],
+        )
 
-    agent_result = None
-    agent_error = None
-    if settings.ai_enabled:
-        try:
-            agent_result = await agent.run(
-                company_id="default",
-                raw_alert=f"Disruption type: {event.type.value}, target: {event.target_id}",
-                thread_id=f"agent-{event.id}",
-                disruption_id=event.id,
-            )
-        # except Exception as exc:  # LLM/network failure shouldn't fail the whole request
-        #     agent_error = str(exc)
-        except Exception as exc:
-            import traceback
-            agent_error = f"{type(exc).__module__}.{type(exc).__name__}: {exc!r}"
-            print(traceback.format_exc())  # full traceback to your server console
+        created = sap.create_disruption(row)
 
-    return {
-        "event": event.model_dump(mode="json"),
-        "agent": agent_result,
-        "agent_error": agent_error,
-    }
+        return {
+            "message": "Disruption created in SAP",
+            "event": {
+                "id": created.event_id,
+                "company_id": created.company_id,
+                "type": created.disrupt_type,
+                "target_type": created.target_type,
+                "target_id": created.target_node,
+                "severity": created.severity,
+                "status": created.status,
+                "start_time": created.start_ts,
+                "expected_end": created.end_ts,
+                "created_by": created.created_by,
+                "payload_json": created.payload_json,
+            },
+        }
 
+    except SapConnectionError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail = f"SAP connection failed: {exc}",
+        ) from exc
 
 @router.post("/ingest")
 async def ingest_raw_alert(
@@ -95,29 +116,83 @@ async def ingest_raw_alert(
         ),
     }
 
-
 @router.get("")
 async def list_disruptions(
-    status: str | None = Query(default=None, pattern="^(active|resolved)$"),
-    ds: DisruptionService = Depends(get_disruption_service),
+    status: str | None = Query(default=None, pattern="^(new|pending|approved|rejected|resolved)$"),
+    sap: SapService = Depends(get_sap_service),
 ):
-    events = ds.active() if status == "active" else (
-        [e for e in ds._log.all() if e.status.value == "resolved"] if status == "resolved"
-        else ds._log.all()
-    )
-    return {"disruptions": [e.model_dump(mode="json") for e in events]}
+    try:
+        rows = sap._provider.list_disruptions()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"SAP connection failed: {exc}",
+        ) from exc
 
+    if status:
+        rows = [row for row in rows if row.status == status]
 
+    return {
+        "disruptions": [
+            {
+                "id": row.event_id,
+                "company_id": row.company_id,
+                "type": row.disrupt_type,
+                "target_type": row.target_type,
+                "target_id": row.target_node,
+                "severity": row.severity,
+                "status": row.status,
+                "start_time": row.start_ts,
+                "expected_end": row.end_ts,
+                "created_at": row.created_at,
+                "created_by": row.created_by,
+                "approved_by": row.approved_by,
+                "payload_json": row.payload_json,
+            }
+            for row in rows
+        ]
+    }
 @router.get("/{event_id}")
 async def get_disruption(
     event_id: str,
-    ds: DisruptionService = Depends(get_disruption_service),
+    sap: SapService = Depends(get_sap_service),
 ):
-    event = ds._log.get(event_id)
-    if event is None:
-        raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
-    return {"event": event.model_dump(mode="json")}
+    try:
+        rows = sap._provider.list_disruptions()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"SAP connection failed: {exc}",
+        ) from exc
 
+    row = next(
+        (r for r in rows if r.event_id == event_id),
+        None,
+    )
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown disruption {event_id}",
+        )
+
+    return {
+        "event": {
+            "id": row.event_id,
+            "company_id": row.company_id,
+            "type": row.disrupt_type,
+            "target_type": row.target_type,
+            "target_id": row.target_node,
+            "severity": row.severity,
+            "status": row.status,
+            "start_time": row.start_ts,
+            "expected_end": row.end_ts,
+            "created_at": row.created_at,
+            "created_by": row.created_by,
+            "approved_by": row.approved_by,
+            "payload_json": row.payload_json,
+        }
+    }
 
 @router.post("/{event_id}/approve")
 async def approve_disruption(
