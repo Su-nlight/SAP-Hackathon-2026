@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...ai.agent.graph import SupplyAgent
@@ -45,8 +45,9 @@ async def create_disruption(
     agent_error = None
     if settings.ai_enabled:
         try:
+            target_company_id = getattr(event, "company_id", "acme") or "acme"
             agent_result = await agent.run(
-                company_id="default",
+                company_id=target_company_id,
                 raw_alert=f"Disruption type: {event.type.value}, target: {event.target_id}",
                 thread_id=f"agent-{event.id}",
                 disruption_id=event.id,
