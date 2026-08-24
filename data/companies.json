@@ -1,8 +1,8 @@
 [
   {
     "company_id": "acme",
-    "provider": "omnirouter",
-    "model": "auto",
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
     "temperature": 0.2
   },
   {

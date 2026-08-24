@@ -15,7 +15,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
@@ -32,6 +32,7 @@ PROVIDER_REGISTRY: dict[str, Any] = {
         api_key=settings.omniroute_api_key_resolved,
         temperature=cfg.temperature,
         timeout=settings.ai_timeout_seconds,
+        default_headers={"x-omniroute-disabled-guardrails": "prompt-injection"},
     ),
     "openai": lambda cfg: ChatOpenAI(
         model=cfg.model or "gpt-4o-mini",

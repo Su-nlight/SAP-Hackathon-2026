@@ -18,7 +18,12 @@ class ScenarioService:
         self._path = scenarios_path or (settings.data_dir / "scenarios.json")
 
     def list_scenarios(self) -> list[dict]:
-        return json.loads(self._path.read_text(encoding="utf-8"))
+        if not self._path.exists():
+            return []
+        try:
+            return json.loads(self._path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return []
 
     async def run(self, scenario_id: str, fast_forward: bool = True) -> dict:
         """Inject every step of a scenario as a live disruption."""
