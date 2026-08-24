@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..config import settings
 from .security import hash_password, verify_password
 
 
@@ -21,7 +22,7 @@ class AuthService:
         if users_file:
             self._load_users(Path(users_file))
         else:
-            self._load_mock_users()
+            self._load_users_from_disk()
 
     def _load_users(self, path: Path) -> None:
         if not path.exists():
@@ -31,7 +32,7 @@ class AuthService:
             for entry in data:
                 self._users[entry["username"]] = entry
 
-    def _load_mock_users(self) -> None:
+    def _load_users_from_disk(self) -> None:
         paths = [
             Path("data/users.json"),
             Path(__file__).resolve().parents[3] / "data" / "users.json",
@@ -42,27 +43,30 @@ class AuthService:
                 self._load_users(p)
                 return
 
-        default_hash = hash_password("password123")
-        self._users = {
-            "acme_admin": {
-                "username": "acme_admin",
-                "company_id": "acme",
-                "password_hash": default_hash,
-                "roles": ["operator", "admin"],
-            },
-            "globex_admin": {
-                "username": "globex_admin",
-                "company_id": "globex",
-                "password_hash": default_hash,
-                "roles": ["operator", "admin"],
-            },
-        }
+        # Secure fallback: only configure fallback users if secret is explicitly provided via config/env
+        fallback_secret = getattr(settings, "default_dev_password", None)
+        if fallback_secret:
+            hashed = hash_password(fallback_secret)
+            self._users = {
+                "acme_admin": {
+                    "username": "acme_admin",
+                    "company_id": "acme",
+                    "password_hash": hashed,
+                    "roles": ["operator", "admin"],
+                },
+                "globex_admin": {
+                    "username": "globex_admin",
+                    "company_id": "globex",
+                    "password_hash": hashed,
+                    "roles": ["operator", "admin"],
+                },
+            }
 
     def authenticate(self, username: str, password: str) -> User | None:
         u = self._users.get(username)
         if not u:
             return None
-        if not verify_password(password, u["password_hash"]):
+        if not verify_password(password, u.get("password_hash", "")):
             return None
         return User(
             username=u["username"],
