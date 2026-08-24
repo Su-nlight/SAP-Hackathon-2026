@@ -11,13 +11,12 @@ from ...config import settings
 from ...domain.models import DisruptionEvent
 from ...sap.service import SapService
 from ...services.disruption_service import DisruptionService
-from ..deps import get_agent, get_disruption_service, get_sap_service
+from ..deps import get_agent, get_current_identity, get_disruption_service, get_sap_service
 
 router = APIRouter(prefix="/v1/disruptions", tags=["disruptions"])
 
 
 class RawAlertIn(BaseModel):
-    company_id: str = "acme"
     raw_text: str = Field(min_length=3)
 
 
@@ -67,6 +66,7 @@ async def create_disruption(
 @router.post("/ingest")
 async def ingest_raw_alert(
     body: RawAlertIn,
+    identity: dict = Depends(get_current_identity),
     agent: SupplyAgent = Depends(get_agent),
 ):
     """Ingest a raw alert; the LangGraph agent parses + assesses + recommends."""
@@ -76,8 +76,9 @@ async def ingest_raw_alert(
             detail="AI disabled (AI_ENABLED=false). Use POST /v1/disruptions with a structured event.",
         )
     event_id = f"d-{uuid.uuid4().hex[:8]}"
+    company_id = identity.get("company_id", "acme")
     result = await agent.run(
-        company_id=body.company_id,
+        company_id=company_id,
         raw_alert=body.raw_text,
         thread_id=f"agent-{event_id}",
         disruption_id=event_id,
