@@ -2,12 +2,17 @@
 from __future__ import annotations
 
 import json
+from typing import Optional
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
 
 from ..ai.agent.graph import SupplyAgent
 from ..ai.agent.nodes import AgentNodes
 from ..ai.llm_registry import LLMRegistry, registry as default_registry
+from ..auth.security import decode_access_token
+from ..auth.service import AuthService
 from ..config import settings
 from ..domain.models import Network, Shipment
 from ..engine.networkx_engine import NetworkXEngine
@@ -50,6 +55,10 @@ agent_nodes = AgentNodes(
 )
 agent = SupplyAgent(agent_nodes)
 sap_service = SapService()
+_auth_service = AuthService()
+
+# ---- Security Scheme -------------------------------------------------
+bearer_scheme = HTTPBearer()
 
 
 # ---- FastAPI dependencies --------------------------------------------
@@ -83,3 +92,18 @@ def get_agent() -> SupplyAgent:
 
 def get_sap_service() -> SapService:
     return sap_service
+
+
+def get_auth_service() -> AuthService:
+    return _auth_service
+
+
+def get_current_identity(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    token = credentials.credentials
+    try:
+        return decode_access_token(token)
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )

@@ -1,40 +1,56 @@
-"""Authentication: login against SAP (real) or mock users, issue a JWT."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from ..deps import get_auth_service
 from ...auth.security import create_access_token
 from ...auth.service import AuthService
+from ..deps import get_auth_service, get_current_identity
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 
-class LoginIn(BaseModel):
+class LoginRequest(BaseModel):
     username: str
     password: str
 
 
-@router.post("/login")
-async def login(body: LoginIn, auth: AuthService = Depends(get_auth_service)):
-    identity = auth.authenticate(body.username, body.password)
-    if identity is None:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({
-        "sub": identity.username,
-        "company_id": identity.company_id,
-        "roles": identity.roles,
-        "auth_source": identity.auth_source,
-    })
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "company_id": identity.company_id,
-        "auth_source": identity.auth_source,  # tells the caller whether SAP or mock validated them
-    }
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    company_id: str
+    auth_source: str
+
+
+@router.post("/login", response_model=LoginResponse)
+def login(req: LoginRequest, auth_svc: AuthService = Depends(get_auth_service)):
+    user = auth_svc.authenticate(req.username, req.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+    token = create_access_token(
+        data={
+            "sub": user.username,
+            "company_id": user.company_id,
+            "roles": user.roles,
+            "auth_source": user.auth_source,
+        }
+    )
+    return LoginResponse(
+        access_token=token,
+        company_id=user.company_id,
+        auth_source=user.auth_source,
+    )
 
 
 @router.get("/me")
-async def me(identity=Depends(__import__("app.api.deps", fromlist=["get_current_identity"]).get_current_identity)):
-    return {"username": identity.username, "company_id": identity.company_id, "roles": identity.roles, "auth_source": identity.auth_source}
+def me(identity: dict[str, Any] = Depends(get_current_identity)):
+    return {
+        "username": identity.get("sub"),
+        "company_id": identity.get("company_id"),
+        "roles": identity.get("roles", []),
+        "auth_source": identity.get("auth_source", "mock"),
+    }
