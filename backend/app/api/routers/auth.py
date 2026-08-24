@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from ...auth.security import create_access_token
-from ...auth.service import AuthService
-from ..deps import get_auth_service, get_current_identity
+from ...auth.service import AuthService, User
+from ..deps import get_auth_service, get_current_user
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -16,41 +15,33 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class LoginResponse(BaseModel):
+class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    company_id: str
-    auth_source: str
 
 
-@router.post("/login", response_model=LoginResponse)
-def login(req: LoginRequest, auth_svc: AuthService = Depends(get_auth_service)):
-    user = auth_svc.authenticate(req.username, req.password)
-    if not user:
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    body: LoginRequest,
+    auth: AuthService = Depends(get_auth_service),
+):
+    u = auth.authenticate(body.username, body.password)
+    if not u:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     token = create_access_token(
-        data={
-            "sub": user.username,
-            "company_id": user.company_id,
-            "roles": user.roles,
-            "auth_source": user.auth_source,
+        {
+            "sub": u.username,
+            "company_id": u.company_id,
+            "roles": u.roles,
         }
     )
-    return LoginResponse(
-        access_token=token,
-        company_id=user.company_id,
-        auth_source=user.auth_source,
-    )
+    return TokenResponse(access_token=token)
 
 
-@router.get("/me")
-def me(identity: dict[str, Any] = Depends(get_current_identity)):
-    return {
-        "username": identity.get("sub"),
-        "company_id": identity.get("company_id"),
-        "roles": identity.get("roles", []),
-        "auth_source": identity.get("auth_source", "mock"),
-    }
+@router.get("/me", response_model=User)
+async def me(u: User = Depends(get_current_user)):
+    return u

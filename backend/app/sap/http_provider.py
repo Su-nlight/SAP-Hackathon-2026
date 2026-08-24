@@ -66,7 +66,7 @@ class S4HttpProvider(SapProvider):
                 headers=headers,
                 json=json_body,
                 timeout=self._timeout,
-                verify=False,  # college systems are typically plain HTTP; keep this configurable
+                verify=settings.sap_verify_tls,
             )
         except httpx.HTTPError as exc:
             raise SapConnectionError(f"network error: {exc.__class__.__name__}: {exc}") from exc

@@ -12,7 +12,7 @@ from ..ai.agent.graph import SupplyAgent
 from ..ai.agent.nodes import AgentNodes
 from ..ai.llm_registry import LLMRegistry, registry as default_registry
 from ..auth.security import decode_access_token
-from ..auth.service import AuthService
+from ..auth.service import AuthService, User
 from ..config import settings
 from ..domain.models import Network, Shipment
 from ..engine.networkx_engine import NetworkXEngine
@@ -58,7 +58,7 @@ sap_service = SapService()
 _auth_service = AuthService()
 
 # ---- Security Scheme -------------------------------------------------
-bearer_scheme = HTTPBearer()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 # ---- FastAPI dependencies --------------------------------------------
@@ -98,12 +98,39 @@ def get_auth_service() -> AuthService:
     return _auth_service
 
 
-def get_current_identity(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
-    token = credentials.credentials
+def get_current_identity(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict:
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
-        return decode_access_token(token)
+        return decode_access_token(credentials.credentials)
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def get_current_user(
+    identity: dict = Depends(get_current_identity),
+    auth: AuthService = Depends(get_auth_service),
+) -> User:
+    username = identity.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+    u = auth.get_user(username)
+    if not u:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+    return u
