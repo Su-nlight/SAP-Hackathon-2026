@@ -4,7 +4,6 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-# from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from ...ai.agent.graph import SupplyAgent
@@ -30,6 +29,7 @@ class ApprovalIn(BaseModel):
 @router.post("", status_code=201)
 async def create_disruption(
     body: DisruptionEvent,
+    background_tasks: BackgroundTasks,
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
     agent: SupplyAgent = Depends(get_agent),
@@ -39,7 +39,7 @@ async def create_disruption(
         event = ds.register(body)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    BackgroundTasks.add_task(sap.mirror_event, event, action="created")
+    background_tasks.add_task(sap.mirror_event, event, action="created")
 
     agent_result = None
     agent_error = None
@@ -51,12 +51,10 @@ async def create_disruption(
                 thread_id=f"agent-{event.id}",
                 disruption_id=event.id,
             )
-        # except Exception as exc:  # LLM/network failure shouldn't fail the whole request
-        #     agent_error = str(exc)
         except Exception as exc:
             import traceback
             agent_error = f"{type(exc).__module__}.{type(exc).__name__}: {exc!r}"
-            print(traceback.format_exc())  # full traceback to your server console
+            print(traceback.format_exc())
 
     return {
         "event": event.model_dump(mode="json"),
@@ -166,6 +164,7 @@ async def get_disruption_state(
 @router.delete("/{event_id}")
 async def resolve_disruption(
     event_id: str,
+    background_tasks: BackgroundTasks,
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
 ):
@@ -173,5 +172,5 @@ async def resolve_disruption(
     resolved = ds.resolve(event_id)
     if resolved is None:
         raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
-    BackgroundTasks.add_task( sap.mirror_event, resolved, action="resolved" )  # fire-and-forget
+    background_tasks.add_task(sap.mirror_event, resolved, action="resolved")
     return {"event": resolved.model_dump(mode="json")}
