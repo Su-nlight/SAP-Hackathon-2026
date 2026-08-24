@@ -29,6 +29,7 @@ class ApprovalIn(BaseModel):
 async def create_disruption(
     body: DisruptionEvent,
     background_tasks: BackgroundTasks,
+    identity: dict = Depends(get_current_identity),
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
     agent: SupplyAgent = Depends(get_agent),
@@ -38,15 +39,16 @@ async def create_disruption(
         event = ds.register(body)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    background_tasks.add_task(sap.mirror_event, event, action="created")
+
+    company_id = identity.get("company_id", "acme")
+    background_tasks.add_task(sap.mirror_event, event, company_id=company_id, action="created")
 
     agent_result = None
     agent_error = None
     if settings.ai_enabled:
         try:
-            target_company_id = getattr(event, "company_id", "acme") or "acme"
             agent_result = await agent.run(
-                company_id=target_company_id,
+                company_id=company_id,
                 raw_alert=f"Disruption type: {event.type.value}, target: {event.target_id}",
                 thread_id=f"agent-{event.id}",
                 disruption_id=event.id,
@@ -183,6 +185,7 @@ async def get_disruption_state(
 async def resolve_disruption(
     event_id: str,
     background_tasks: BackgroundTasks,
+    identity: dict = Depends(get_current_identity),
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
 ):
@@ -190,5 +193,6 @@ async def resolve_disruption(
     resolved = ds.resolve(event_id)
     if resolved is None:
         raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
-    background_tasks.add_task(sap.mirror_event, resolved, action="resolved")
+    company_id = identity.get("company_id", "acme")
+    background_tasks.add_task(sap.mirror_event, resolved, company_id=company_id, action="resolved")
     return {"event": resolved.model_dump(mode="json")}
