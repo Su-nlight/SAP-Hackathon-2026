@@ -311,4 +311,5 @@ class S4HttpProvider(SapProvider):
 
 
 class SapConnectionError(RuntimeError):
+    """Raised when the SAP system is unreachable or returns an error."""
     pass
