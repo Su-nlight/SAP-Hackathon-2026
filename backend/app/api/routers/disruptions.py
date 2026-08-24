@@ -77,12 +77,19 @@ async def ingest_raw_alert(
         )
     event_id = f"d-{uuid.uuid4().hex[:8]}"
     company_id = identity.get("company_id", "acme")
-    result = await agent.run(
-        company_id=company_id,
-        raw_alert=body.raw_text,
-        thread_id=f"agent-{event_id}",
-        disruption_id=event_id,
-    )
+    try:
+        result = await agent.run(
+            company_id=company_id,
+            raw_alert=body.raw_text,
+            thread_id=f"agent-{event_id}",
+            disruption_id=event_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI parsing failed: {type(exc).__name__}: {exc}",
+        ) from exc
+
     return {
         "thread_id": result["thread_id"],
         "disruption_id": event_id,
@@ -128,11 +135,18 @@ async def approve_disruption(
     """Resume the agent graph: approve (or reject with feedback) the plan."""
     if not settings.ai_enabled:
         raise HTTPException(status_code=503, detail="AI disabled.")
-    result = await agent.resume(
-        thread_id=f"agent-{event_id}",
-        approved=body.approved,
-        feedback=body.feedback,
-    )
+    try:
+        result = await agent.resume(
+            thread_id=f"agent-{event_id}",
+            approved=body.approved,
+            feedback=body.feedback,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No pending plan for disruption {event_id}: {exc}",
+        ) from exc
+
     return {
         "thread_id": result["thread_id"],
         "approved": body.approved,
