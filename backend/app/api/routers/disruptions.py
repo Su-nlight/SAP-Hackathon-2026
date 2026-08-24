@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-# from fastapi.concurrency import run_in_threadpool
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...ai.agent.graph import SupplyAgent
@@ -12,13 +11,12 @@ from ...config import settings
 from ...domain.models import DisruptionEvent
 from ...sap.service import SapService
 from ...services.disruption_service import DisruptionService
-from ..deps import get_agent, get_disruption_service, get_sap_service
+from ..deps import get_agent, get_current_identity, get_disruption_service, get_sap_service
 
 router = APIRouter(prefix="/v1/disruptions", tags=["disruptions"])
 
 
 class RawAlertIn(BaseModel):
-    company_id: str = "acme"
     raw_text: str = Field(min_length=3)
 
 
@@ -30,6 +28,8 @@ class ApprovalIn(BaseModel):
 @router.post("", status_code=201)
 async def create_disruption(
     body: DisruptionEvent,
+    background_tasks: BackgroundTasks,
+    identity: dict = Depends(get_current_identity),
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
     agent: SupplyAgent = Depends(get_agent),
@@ -39,24 +39,24 @@ async def create_disruption(
         event = ds.register(body)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    BackgroundTasks.add_task(sap.mirror_event, event, action="created")
+
+    company_id = identity.get("company_id", "acme")
+    background_tasks.add_task(sap.mirror_event, event, company_id=company_id, action="created")
 
     agent_result = None
     agent_error = None
     if settings.ai_enabled:
         try:
             agent_result = await agent.run(
-                company_id="default",
+                company_id=company_id,
                 raw_alert=f"Disruption type: {event.type.value}, target: {event.target_id}",
                 thread_id=f"agent-{event.id}",
                 disruption_id=event.id,
             )
-        # except Exception as exc:  # LLM/network failure shouldn't fail the whole request
-        #     agent_error = str(exc)
         except Exception as exc:
             import traceback
             agent_error = f"{type(exc).__module__}.{type(exc).__name__}: {exc!r}"
-            print(traceback.format_exc())  # full traceback to your server console
+            print(traceback.format_exc())
 
     return {
         "event": event.model_dump(mode="json"),
@@ -68,6 +68,7 @@ async def create_disruption(
 @router.post("/ingest")
 async def ingest_raw_alert(
     body: RawAlertIn,
+    identity: dict = Depends(get_current_identity),
     agent: SupplyAgent = Depends(get_agent),
 ):
     """Ingest a raw alert; the LangGraph agent parses + assesses + recommends."""
@@ -76,13 +77,21 @@ async def ingest_raw_alert(
             status_code=503,
             detail="AI disabled (AI_ENABLED=false). Use POST /v1/disruptions with a structured event.",
         )
-    event_id = f"d-{uuid.uuid4().hex[:8]}"
-    result = await agent.run(
-        company_id=body.company_id,
-        raw_alert=body.raw_text,
-        thread_id=f"agent-{event_id}",
-        disruption_id=event_id,
-    )
+    event_id = f"d-{uuid.uuid4().hex}"
+    company_id = identity.get("company_id", "acme")
+    try:
+        result = await agent.run(
+            company_id=company_id,
+            raw_alert=body.raw_text,
+            thread_id=f"agent-{event_id}",
+            disruption_id=event_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI parsing failed: {type(exc).__name__}: {exc}",
+        ) from exc
+
     return {
         "thread_id": result["thread_id"],
         "disruption_id": event_id,
@@ -101,10 +110,12 @@ async def list_disruptions(
     status: str | None = Query(default=None, pattern="^(active|resolved)$"),
     ds: DisruptionService = Depends(get_disruption_service),
 ):
-    events = ds.active() if status == "active" else (
-        [e for e in ds._log.all() if e.status.value == "resolved"] if status == "resolved"
-        else ds._log.all()
-    )
+    if status == "active":
+        events = ds.active()
+    elif status == "resolved":
+        events = ds.resolved()
+    else:
+        events = ds.all()
     return {"disruptions": [e.model_dump(mode="json") for e in events]}
 
 
@@ -113,7 +124,7 @@ async def get_disruption(
     event_id: str,
     ds: DisruptionService = Depends(get_disruption_service),
 ):
-    event = ds._log.get(event_id)
+    event = ds.get(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
     return {"event": event.model_dump(mode="json")}
@@ -128,11 +139,18 @@ async def approve_disruption(
     """Resume the agent graph: approve (or reject with feedback) the plan."""
     if not settings.ai_enabled:
         raise HTTPException(status_code=503, detail="AI disabled.")
-    result = await agent.resume(
-        thread_id=f"agent-{event_id}",
-        approved=body.approved,
-        feedback=body.feedback,
-    )
+    try:
+        result = await agent.resume(
+            thread_id=f"agent-{event_id}",
+            approved=body.approved,
+            feedback=body.feedback,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No pending plan for disruption {event_id}: {exc}",
+        ) from exc
+
     return {
         "thread_id": result["thread_id"],
         "approved": body.approved,
@@ -166,6 +184,8 @@ async def get_disruption_state(
 @router.delete("/{event_id}")
 async def resolve_disruption(
     event_id: str,
+    background_tasks: BackgroundTasks,
+    identity: dict = Depends(get_current_identity),
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
 ):
@@ -173,5 +193,6 @@ async def resolve_disruption(
     resolved = ds.resolve(event_id)
     if resolved is None:
         raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
-    BackgroundTasks.add_task( sap.mirror_event, resolved, action="resolved" )  # fire-and-forget
+    company_id = identity.get("company_id", "acme")
+    background_tasks.add_task(sap.mirror_event, resolved, company_id=company_id, action="resolved")
     return {"event": resolved.model_dump(mode="json")}

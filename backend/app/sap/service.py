@@ -75,8 +75,6 @@ class SapService:
         self._last_error: Optional[str] = None
         self._disruptions_mirrored = 0
         self._health_cache: Optional[SapHealth] = None
-        # When offline, surface the reason immediately so status() is
-        # honest even before the first sync() call.
         if self._provider.name == "offline":
             self._last_error = getattr(self._provider, "_reason", "SAP bridge offline.")
 
@@ -149,13 +147,7 @@ class SapService:
 
     # ---- graph merge -------------------------------------------------
     def merge_into(self, network: Network) -> Network:
-        """Add SAP nodes as routable nodes with feeder edges.
-
-        Each SAP node attaches to the nearest transport node (port /
-        airport / rail hub / warehouse) with a road edge whose cost/time
-        scale with distance. Nodes whose city could not be geocoded are
-        skipped (they stay visible in /v1/sap/network, flagged).
-        """
+        """Add SAP nodes as routable nodes with feeder edges."""
         if self._provider.name == "offline":
             return network
 
@@ -190,7 +182,6 @@ class SapService:
                     "material_count": 0,
                 },
             )
-            # feeder edge to the nearest transport node
             nearest = min(
                 transport,
                 key=lambda t: haversine_km(point, t.location),
@@ -203,8 +194,8 @@ class SapService:
                 target=nearest.id,
                 mode="road",
                 distance_km=round(dist, 1),
-                base_time_hours=round(dist / 40.0, 1),   # ~40 km/h truck
-                base_cost_per_ton=round(dist * 0.02, 2),  # $20 per 1000 km
+                base_time_hours=round(dist / 40.0, 1),
+                base_cost_per_ton=round(dist * 0.02, 2),
                 capacity=1.0,
                 reliability=0.95,
                 co2_per_ton_km=0.06,
@@ -212,14 +203,19 @@ class SapService:
         return Network(nodes=nodes, edges=edges)
 
     # ---- write-back --------------------------------------------------
-    def mirror_event(self, event: DisruptionEvent, action: str = "created") -> bool:
+    def mirror_event(
+        self,
+        event: DisruptionEvent,
+        company_id: str = "acme",
+        action: str = "created",
+    ) -> bool:
         """Mirror a disruption into ZHEAL_DISRUPTIONS (fire-and-forget)."""
         if self._provider.name == "offline":
             return False
         try:
             row = SapDisruptionRow(
                 event_id=event.id,
-                company_id="acme",
+                company_id=company_id,
                 disrupt_type=event.type.value,
                 target_type=event.target_type,
                 target_node=event.target_id,
@@ -244,10 +240,7 @@ class SapService:
     def pull_approvals(
         self, log, disruption_service
     ) -> list[str]:
-        """Approve local events that were approved inside SAP.
-
-        Returns the list of event ids newly approved on our side.
-        """
+        """Approve local events that were approved inside SAP."""
         if self._provider.name == "offline":
             return []
         try:
@@ -263,7 +256,5 @@ class SapService:
                 continue
             if local.status.value == "active" or local.status.value == "pending_review":
                 approved.append(row.event_id)
-                # Represent the approval as a resolved-with-note event so the
-                # log stays append-only and the network heals on the SAP side.
                 disruption_service.resolve(row.event_id)
         return approved
