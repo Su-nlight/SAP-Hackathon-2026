@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime, timezone
+import traceback
 from typing import Optional
 
 from ..config import settings
@@ -305,7 +306,11 @@ class SapService:
             raise SapConnectionError("SAP bridge offline.")
 
         return self._provider.resolve_disruption(event_id)
+    def delete_disruption(self, event_id: str) -> bool:
+        if self._provider.name == "offline":
+            raise SapConnectionError("SAP bridge offline.")
 
+        return self._provider.delete_disruption(event_id)
     # ---- write-back ---------------------------------------------------
 
     def mirror_event(
@@ -314,7 +319,6 @@ class SapService:
         company_id: str = "acme",
         action: str = "created",
     ) -> bool:
-        """Mirror a disruption into ZHEAL_DISRUPTION."""
 
         if self._provider.name == "offline":
             return False
@@ -322,16 +326,12 @@ class SapService:
         try:
             row = SapDisruptionRow(
                 event_id=event.id,
-                company_id = company_id,
+                company_id=company_id,
                 disrupt_type=event.type.value,
                 target_type=event.target_type,
-                target_node=event.target_id,
+                target_id=event.target_id,
                 severity=event.severity.value,
-                status=(
-                    "resolved"
-                    if action == "resolved"
-                    else "new"
-                ),
+                status="resolved" if action == "resolved" else "new",
                 start_ts=(
                     event.start_time.isoformat()
                     if event.start_time
@@ -342,10 +342,17 @@ class SapService:
                     if event.expected_end
                     else None
                 ),
-                payload_json=json.dumps(
-                    event.model_dump(mode="json"),
-                    default=str,
-                )[:2000],
+                impact_delay=event.impact_delay_hours,
+                capacity_factor=event.capacity_factor,
+                source=event.source,
+                raw_text=event.raw_text,
+                resolved_at=(
+                    event.resolved_at.isoformat()
+                    if event.resolved_at
+                    else None
+                ),
+                manual_review=event.manual_review,
+                payload_json="",
             )
 
             if action == "resolved":
@@ -354,13 +361,20 @@ class SapService:
                 self.create_disruption(row)
 
             return True
-
+        
         except (
             SapConnectionError,
             SapNotConfigured,
-        ):
+        ) as exc:
+            print(f"SAP mirror failed: {exc}")
             return False
 
+        except Exception as exc:
+            import traceback
+            print(f"SAP mirror unexpected error: {exc}")
+            print(traceback.format_exc())
+            return False
+    
     def pull_approvals(
         self,
         log,

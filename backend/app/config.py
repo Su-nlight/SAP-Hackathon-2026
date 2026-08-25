@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # --- auth ---
     jwt_secret: str = "this-is~ouur~very-secreet=for+jwt-auth"          # REQUIRED in real deployments — generate with: openssl rand -hex 32
     jwt_algorithm: str = "HS256"
+    default_dev_password: str = ""
     jwt_expire_minutes: int = 80
     auth_mode: str = "auto"       # "mock" | "sap" | "auto" (auto = try SAP if connected, else mock)
     mock_users_path: Path = BASE_DIR / "data" / "users.json"

@@ -125,7 +125,6 @@ class S4HttpProvider(SapProvider):
                 headers=headers,
                 json=json_body,
                 timeout=self._timeout,
-                verify=settings.sap_verify_tls,
             )
         except httpx.HTTPError as exc:
             raise SapConnectionError(
@@ -203,56 +202,57 @@ class S4HttpProvider(SapProvider):
 
     def list_disruptions(self) -> list[SapDisruptionRow]:
 
-        raw = self._request(
-            "GET",
-            "ZHEAL_DISRUPTIONSet",
-        )
-
-        rows: list[SapDisruptionRow] = []
-
-        if not raw:
-            return rows
-
-        entries = (
-            raw.get("d", {}).get("results", [])
-            if isinstance(raw, dict)
-            else []
-        )
-
-        for r in entries:
-            rows.append(
-                SapDisruptionRow(
-                    event_id=str(r.get("EventId", "")),
-                    company_id=str(r.get("CompanyId", "")),
-                    disrupt_type=str(r.get("DisruptType", "")),
-                    target_type=str(
-                        r.get("TargetType", "node")
-                    ),
-                    target_node=str(
-                        r.get("TargetNode", "")
-                    ),
-                    severity=str(
-                        r.get("Severity", "full")
-                    ),
-                    status=str(
-                        r.get("Status", "new")
-                    ).lower(),
-                    start_ts=r.get("StartTs"),
-                    end_ts=r.get("EndTs"),
-                    created_at=r.get("CreatedAt"),
-                    created_by=str(
-                        r.get("CreatedBy", "")
-                    ),
-                    approved_by=str(
-                        r.get("ApprovedBy", "")
-                    ),
-                    payload_json=str(
-                        r.get("PayloadJson", "")
-                    ),
-                )
+            raw = self._request(
+                "GET",
+                "ZHEAL_DISRUPTIONSet",
             )
 
-        return rows
+            rows: list[SapDisruptionRow] = []
+
+            if not raw:
+                return rows
+
+            entries = (
+                raw.get("d", {}).get("results", [])
+                if isinstance(raw, dict)
+                else []
+            )
+
+            for r in entries:
+                rows.append(
+                    SapDisruptionRow(
+                        event_id=str(r.get("EventId", "")),
+                        company_id=str(r.get("CompanyId", "")),
+                        disrupt_type=str(r.get("DisruptType", "")),
+                        target_type=str(r.get("TargetType", "node")),
+                        target_id=str(r.get("TargetId", "")),
+                        severity=str(r.get("Severity", "full")),
+                        status={
+                            "NEW": "active",
+                            "APPROVED": "approved",
+                            "RESOLVED": "resolved",
+                        }.get(
+                            str(r.get("Status", "NEW")).upper(),
+                            "active",
+                        ),
+                        start_ts=r.get("StartTs"),
+                        end_ts=r.get("EndTs"),
+                        created_at=r.get("CreatedAt"),
+                        created_by=str(r.get("CreatedBy", "")),
+                        approved_by=str(r.get("ApprovedBy", "")),
+                        impact_delay=float(r.get("ImpactDelay", 0) or 0),
+                        capacity_factor=float(r.get("CapacityFactor", 1) or 1),
+                        source=str(r.get("Source", "")),
+                        raw_text=str(r.get("RawText", "")),
+                        resolved_at=r.get("ResolvedAt"),
+                        manual_review=str(
+                            r.get("ManualReview", "")
+                        ).upper() == "X",
+                        payload_json=str(r.get("PayloadJson", "")),
+                    )
+                )
+
+            return rows
 
     def create_disruption(
         self,
@@ -264,20 +264,53 @@ class S4HttpProvider(SapProvider):
             "CompanyId": row.company_id,
             "DisruptType": row.disrupt_type,
             "TargetType": row.target_type,
-            "TargetNode": row.target_node,
+            "TargetId": row.target_id,
             "Severity": row.severity,
             "Status": row.status.upper(),
             "StartTs": _sap_ts(row.start_ts),
             "EndTs": _sap_ts(row.end_ts),
-            "CreatedBy": row.created_by,
+            "ImpactDelay": f"{row.impact_delay:.2f}",
+            "CapacityFactor": f"{row.capacity_factor:.4f}",
+            "Source": row.source,
+            "RawText": row.raw_text,
+            "ManualReview": "X" if row.manual_review else "",
             "PayloadJson": row.payload_json,
         }
 
-        self._request(
+        raw = self._request(
             "POST",
             "ZHEAL_DISRUPTIONSet",
             json_body=body,
         )
+
+        if isinstance(raw, dict):
+            data = raw.get("d", {})
+            if isinstance(data, dict):
+                return SapDisruptionRow(
+                    event_id=str(data.get("EventId", row.event_id)),
+                    company_id=str(data.get("CompanyId", row.company_id)),
+                    disrupt_type=str(data.get("DisruptType", row.disrupt_type)),
+                    target_type=str(data.get("TargetType", row.target_type)),
+                    target_id=str(data.get("TargetId", row.target_id)),
+                    severity=str(data.get("Severity", row.severity)),
+                    status=str(data.get("Status", row.status)).lower(),
+                    start_ts=data.get("StartTs", row.start_ts),
+                    end_ts=data.get("EndTs", row.end_ts),
+                    created_at=data.get("CreatedAt"),
+                    created_by=str(data.get("CreatedBy", "")),
+                    approved_by=str(data.get("ApprovedBy", "")),
+                    impact_delay=float(data.get("ImpactDelay", 0) or 0),
+                    capacity_factor=float(
+                        data.get("CapacityFactor", 1) or 1
+                    ),
+                    source=str(data.get("Source", "")),
+                    raw_text=str(data.get("RawText", "")),
+                    resolved_at=data.get("ResolvedAt"),
+                    manual_review=str(
+                        data.get("ManualReview", "")
+                    ).upper() == "X",
+                    payload_json=str(data.get("PayloadJson", "")),
+                )
 
         return row
 
@@ -310,7 +343,13 @@ class S4HttpProvider(SapProvider):
         )
 
         return True
-
+    
+    def delete_disruption(self, event_id: str) -> bool:
+        self._request(
+            "DELETE",
+            f"ZHEAL_DISRUPTIONSet('{event_id}')",
+        )
+        return True
 
 class SapConnectionError(RuntimeError):
     """Raised when the SAP system is unreachable or returns an error."""
