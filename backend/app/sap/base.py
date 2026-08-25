@@ -1,4 +1,9 @@
-"""SAP bridge contracts: DTOs and the provider interface."""
+"""SAP bridge contracts: DTOs and the provider interface.
+
+The provider interface is deliberately tiny (five calls) so an RFC-based
+provider (pyrfc) or OData provider can be swapped in later without
+touching SapService.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -11,9 +16,9 @@ from typing import Any, Optional
 class SapNodeInfo:
     """A master-data node from S/4HANA (plant or customer)."""
 
-    id: str
+    id: str                    # e.g. "DE00", "US00", "0000001000"
     name: str
-    kind: str
+    kind: str                  # "plant" | "customer"
     city: str = ""
     country: str = ""
     lat: Optional[float] = None
@@ -32,26 +37,20 @@ class SapMaterialInfo:
 
 @dataclass
 class SapDisruptionRow:
-    """Row from ZHEAL_DISRUPTION."""
+    """Row from ZHEAL_DISRUPTIONS (mirrored events)."""
 
     event_id: str
     company_id: str = ""
     disrupt_type: str = ""
     target_type: str = "node"
-    target_id: str = ""
+    target_node: str = ""
     severity: str = "full"
-    status: str = "new"
+    status: str = "new"        # new | pending | approved | rejected | resolved
     start_ts: Optional[str] = None
     end_ts: Optional[str] = None
     created_at: Optional[str] = None
     created_by: str = ""
     approved_by: str = ""
-    impact_delay: float = 0.0
-    capacity_factor: float = 1.0
-    source: str = "manual"
-    raw_text: str = ""
-    resolved_at: Optional[str] = None
-    manual_review: bool = False
     payload_json: str = ""
 
 
@@ -85,28 +84,24 @@ class SapProvider(ABC):
 
     @abstractmethod
     def health(self) -> SapHealth:
-        """Probe the SAP service."""
+        """Probe the ICF service (GET /sap/zheal/health)."""
 
     @abstractmethod
     def fetch_network(self) -> tuple[list[SapNodeInfo], list[SapMaterialInfo]]:
-        """Pull plants, customers and materials."""
+        """Pull plants + customers + materials (GET /sap/zheal/network)."""
 
     @abstractmethod
     def list_disruptions(self) -> list[SapDisruptionRow]:
-        """List mirrored disruption rows."""
+        """List ZHEAL_DISRUPTIONS rows (GET /sap/zheal/disruptions)."""
 
     @abstractmethod
     def create_disruption(self, row: SapDisruptionRow) -> SapDisruptionRow:
-        """Create a disruption in SAP."""
+        """Mirror a disruption into SAP (POST /sap/zheal/disruptions)."""
 
     @abstractmethod
     def approve_disruption(self, event_id: str) -> bool:
-        """Approve a disruption in SAP."""
+        """Approve inside SAP (POST /sap/zheal/disruptions/approve)."""
 
     @abstractmethod
     def resolve_disruption(self, event_id: str) -> bool:
-        """Resolve a disruption in SAP."""
-
-    @abstractmethod
-    def delete_disruption(self, event_id: str) -> bool:
-        """Delete a disruption in SAP."""
+        """Resolve inside SAP (POST /sap/zheal/disruptions/resolve)."""
