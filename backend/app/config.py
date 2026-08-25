@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_name: str = "supplychain-heal"
     data_dir: Path = BASE_DIR / "data"
     event_log_path: Path = BASE_DIR / "data" / "event_log.jsonl"
-    data_provider: Literal["sap", "mock"] = "mock"
+    data_provider: Literal["sap", "mock"] = "sap"
 
     # LLM defaults
     ai_enabled: bool = True
