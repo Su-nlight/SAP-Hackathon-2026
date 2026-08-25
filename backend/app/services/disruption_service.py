@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-import uuid
 from datetime import datetime, timezone
 
 from ..domain.constants import DisruptionStatus
-from ..domain.models import DisruptionEvent, Network, Shipment
+from ..domain.models import DisruptionEvent, Network
 from ..streaming.hub import SinkHub
 from ..store.event_log import EventLog
 from ..store.network_store import NetworkStore
@@ -37,6 +36,10 @@ class DisruptionService:
             pass
         return event
 
+    def approve(self, event_id: str) -> DisruptionEvent | None:
+        """Record a mock approval without changing the disruption lifecycle status."""
+        return self._log.get(event_id)
+
     def resolve(self, event_id: str) -> DisruptionEvent | None:
         """Resolve a disruption: mark RESOLVED, emit network.healed."""
         ev = self._log.get(event_id)
@@ -55,6 +58,10 @@ class DisruptionService:
         except RuntimeError:
             pass
         return resolved
+
+    def delete(self, event_id: str) -> bool:
+        """Delete a disruption from the mock event store."""
+        return self._log.delete(event_id)
 
     def get(self, event_id: str) -> DisruptionEvent | None:
         """Retrieve a disruption event by its ID."""
