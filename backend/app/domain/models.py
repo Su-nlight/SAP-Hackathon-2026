@@ -197,3 +197,38 @@ class AppState(BaseModel):
     node_count: int = 0
     edge_count: int = 0
     healthy: bool = True
+from datetime import datetime, timezone
+from typing import Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field
+from .constants import DisruptionType, HealAction, Severity
+
+
+class DecisionRecord(BaseModel):
+    """A finalized (approved) heal decision, archived for search/chat."""
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    company_id: str
+    disruption_id: str
+    disruption_type: DisruptionType
+    target_type: Literal["node", "edge"]
+    target_id: str
+    severity: Severity
+    action: HealAction
+    reason: str
+    narrative: str
+    urgency: Literal["low", "medium", "high", "critical"]
+    affected_shipment_ids: list[str] = Field(default_factory=list)
+    approved: bool
+    feedback: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def to_embedding_text(self) -> str:
+        """Single text blob used for embedding — keep this deterministic."""
+        return (
+            f"Disruption: {self.disruption_type.value} at {self.target_type} {self.target_id}, "
+            f"severity {self.severity.value}, urgency {self.urgency}.\n"
+            f"Decision: {self.action.value}. Reason: {self.reason}.\n"
+            f"Narrative: {self.narrative}\n"
+            f"Approved: {self.approved}."
+        )

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.deps import log, sap_service
-from .api.routers import auth, disruptions, events, network, routes, sap, scenarios, tenants
+from .api.routers import auth, chat, disruptions, events, network, routes, sap, scenarios, tenants
 from .config import settings
 
 
@@ -26,7 +26,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    for r in (auth, disruptions, routes, network, scenarios, tenants, events, sap):
+    for r in (auth, disruptions, routes, network, scenarios, tenants, events, sap, chat):
         app.include_router(r.router)
 
     @app.get("/")

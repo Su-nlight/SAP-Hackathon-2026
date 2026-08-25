@@ -17,6 +17,8 @@ from ..config import settings
 from ..domain.models import Network, Shipment
 from ..engine.networkx_engine import NetworkXEngine
 from ..sap.service import SapService
+from ..services.chat_service import DecisionChatService
+from ..services.decision_archive_service import DecisionArchiveService
 from ..services.disruption_service import DisruptionService
 from ..services.heal_engine import HealEngine
 from ..services.network_service import NetworkService
@@ -50,8 +52,18 @@ routing_service = RoutingService(engine)
 disruption_service = DisruptionService(store, log, hub)
 heal_engine = HealEngine(network_service, routing_service)
 scenario_service = ScenarioService(disruption_service)
+
+# Decision Archive & Chat singletons
+decision_archive_service = DecisionArchiveService()
+decision_chat_service = DecisionChatService(decision_archive_service, default_registry)
+
 agent_nodes = AgentNodes(
-    default_registry, disruption_service, network_service, heal_engine, hub
+    default_registry,
+    disruption_service,
+    network_service,
+    heal_engine,
+    hub,
+    decision_archive_service,
 )
 agent = SupplyAgent(agent_nodes)
 sap_service = SapService()
@@ -96,6 +108,14 @@ def get_sap_service() -> SapService:
 
 def get_auth_service() -> AuthService:
     return _auth_service
+
+
+def get_decision_archive_service() -> DecisionArchiveService:
+    return decision_archive_service
+
+
+def get_decision_chat_service() -> DecisionChatService:
+    return decision_chat_service
 
 
 def get_current_identity(
