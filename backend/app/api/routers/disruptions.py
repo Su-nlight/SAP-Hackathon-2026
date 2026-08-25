@@ -40,12 +40,14 @@ async def create_disruption(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     company_id = identity.get("company_id", "acme")
-    background_tasks.add_task(
-        sap.mirror_event,
-        event,
-        company_id=company_id,
-        action="created",
-    )
+
+    if settings.data_provider == "sap":
+        background_tasks.add_task(
+            sap.mirror_event,
+            event,
+            company_id=company_id,
+            action="created",
+        )
 
     agent_result = None
     agent_error = None
@@ -68,6 +70,7 @@ async def create_disruption(
         "agent": agent_result,
         "agent_error": agent_error,
     }
+
 
 @router.post("/ingest")
 async def ingest_raw_alert(
@@ -108,6 +111,7 @@ async def ingest_raw_alert(
         ),
     }
 
+
 @router.get("")
 async def list_disruptions(
     status: str | None = Query(
@@ -124,11 +128,9 @@ async def list_disruptions(
         events = ds.all()
 
     return {
-        "disruptions": [
-            e.model_dump(mode="json")
-            for e in events
-        ]
+        "disruptions": [e.model_dump(mode="json") for e in events]
     }
+
 
 @router.get("/{event_id}")
 async def get_disruption(
@@ -143,13 +145,14 @@ async def get_disruption(
             detail=f"Unknown disruption {event_id}",
         )
 
-    return {
-        "event": event.model_dump(mode="json")
-    }
+    return {"event": event.model_dump(mode="json")}
+
+
 @router.post("/{event_id}/approve")
 async def approve_disruption(
     event_id: str,
     body: ApprovalIn,
+    ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
 ):
     if not body.approved:
@@ -158,19 +161,30 @@ async def approve_disruption(
             detail="Rejection workflow is not implemented yet.",
         )
 
-    try:
-        sap.approve_disruption(event_id)
-    except Exception as exc:
+    if ds.get(event_id) is None:
         raise HTTPException(
-            status_code=502,
-            detail=f"SAP approval failed: {exc}",
-        ) from exc
+            status_code=404,
+            detail=f"Unknown disruption {event_id}",
+        )
+
+    if settings.data_provider == "sap":
+        try:
+            sap.approve_disruption(event_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"SAP approval failed: {exc}",
+            ) from exc
+    else:
+        ds.approve(event_id)
 
     return {
         "event_id": event_id,
         "approved": True,
         "status": "approved",
+        "provider": settings.data_provider,
     }
+
 
 @router.get("/{event_id}/state")
 async def get_disruption_state(
@@ -194,6 +208,7 @@ async def get_disruption_state(
         "next_nodes": list(snapshot.next),
     }
 
+
 @router.post("/{event_id}/resolve")
 async def resolve_disruption(
     event_id: str,
@@ -213,16 +228,16 @@ async def resolve_disruption(
 
     company_id = identity.get("company_id", "acme")
 
-    background_tasks.add_task(
-        sap.mirror_event,
-        resolved,
-        company_id=company_id,
-        action="resolved",
-    )
+    if settings.data_provider == "sap":
+        background_tasks.add_task(
+            sap.mirror_event,
+            resolved,
+            company_id=company_id,
+            action="resolved",
+        )
 
-    return {
-        "event": resolved.model_dump(mode="json")
-    }
+    return {"event": resolved.model_dump(mode="json")}
+
 
 @router.delete("/{event_id}")
 async def delete_disruption(
@@ -230,23 +245,25 @@ async def delete_disruption(
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
 ):
-    event = ds.get(event_id)
-
-    if event is None:
+    if ds.get(event_id) is None:
         raise HTTPException(
             status_code=404,
             detail=f"Unknown disruption {event_id}",
         )
 
-    try:
-        sap.delete_disruption(event_id)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"SAP deletion failed: {exc}",
-        ) from exc
+    if settings.data_provider == "sap":
+        try:
+            sap.delete_disruption(event_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"SAP deletion failed: {exc}",
+            ) from exc
+    else:
+        ds.delete(event_id)
 
     return {
         "event_id": event_id,
         "deleted": True,
+        "provider": settings.data_provider,
     }
