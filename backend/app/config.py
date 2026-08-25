@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +15,7 @@ class Settings(BaseSettings):
     app_name: str = "supplychain-heal"
     data_dir: Path = BASE_DIR / "data"
     event_log_path: Path = BASE_DIR / "data" / "event_log.jsonl"
+    data_provider: Literal["sap", "mock"] = "mock"
 
     # LLM defaults
     ai_enabled: bool = True
@@ -21,14 +23,13 @@ class Settings(BaseSettings):
     default_llm_provider: str = "omnirouter"
     default_llm_model: str = "auto"
     omniroute_base_url: str = "http://localhost:20128/v1"
-    omniroute_api_key: str = ""  # falls back to env OMNIROUTE_API_KEY
+    omniroute_api_key: str = ""
     default_temperature: float = 0.2
 
     # Graph defaults
-    default_alpha: float = 0.5  # weight = a*cost + b*time + c*risk + d*emissions
+    default_alpha: float = 0.5
 
-    # SAP S/4HANA bridge (HTTP/ICF). Leave S4_BASE_URL empty to stay
-    # offline: the service runs on seed data and reports sap_connected=false.
+    # SAP S/4HANA bridge
     sap_base_url: str = ""
     sap_username: str = ""
     sap_password: str = ""
@@ -36,12 +37,13 @@ class Settings(BaseSettings):
     sap_verify_tls: bool = False
     sap_sync_on_boot: bool = True
     sap_merge_nodes: bool = True
+
     # --- auth ---
-    jwt_secret: str = "this-is~ouur~very-secreet=for+jwt-auth"          # REQUIRED in real deployments — generate with: openssl rand -hex 32
+    jwt_secret: str = "this-is~ouur~very-secreet=for+jwt-auth"
     jwt_algorithm: str = "HS256"
     default_dev_password: str = ""
     jwt_expire_minutes: int = 80
-    auth_mode: str = "auto"       # "mock" | "sap" | "auto" (auto = try SAP if connected, else mock)
+    auth_mode: str = "auto"
     mock_users_path: Path = BASE_DIR / "data" / "users.json"
 
     @property
