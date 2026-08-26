@@ -77,25 +77,25 @@ class HealEngine:
                 reason="No path exists between origin and destination. Escalating to a human.",
                 affected_shipment_ids=[s.id for s in affected],
             )
+        deadline_alts = [
+            a for a in alts
+            if a.feasibility == "infeasible"
+            and any("deadline" in r.lower() for r in a.infeasible_reasons)
+        ]
 
+        if deadline_alts:
+            best = min(deadline_alts, key=lambda a: a.total_time_hours)
+            return HealDecision(
+                action=HealAction.EXPEDITE,
+                reason=(
+                    f"Expedite {shipment.id}: available routes miss the deadline; "
+                    f"fastest route takes {best.total_time_hours:.1f}h."
+                ),
+                alternatives=alts,
+                affected_shipment_ids=[s.id for s in affected],
+            )
+        
         if feasible:
-            deadline_alts = [
-                a for a in alts
-                if a.total_time_hours > self._baseline_time(shipment, now)
-                and a.feasibility == "infeasible"
-                and any("deadline" in r.lower() for r in a.infeasible_reasons)
-            ]
-            if deadline_alts:
-                best = min(deadline_alts, key=lambda a: a.total_time_hours)
-                return HealDecision(
-                    action=HealAction.EXPEDITE,
-                    reason=(
-                        f"Expedite {shipment.id}: standard alternatives miss the deadline; "
-                        f"fastest available route takes {best.total_time_hours:.1f}h."
-                    ),
-                    alternatives=alts,
-                    affected_shipment_ids=[s.id for s in affected],
-                )
             best = feasible[0]
             if best.total_time_hours > self._baseline_time(shipment, now) + 1e-9:
                 return HealDecision(

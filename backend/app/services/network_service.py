@@ -37,25 +37,28 @@ class NetworkService:
         if self._routing is None:
             return []
 
+        baseline = self._store.current([])
         affected: list[Shipment] = []
 
         for shipment in self._shipments.values():
-            route = self._routing.shortest(
-                current,
+            baseline_route = self._routing.shortest(
+                baseline,
                 shipment,
-                [event],
+                [],
             )
 
-            if route is None:
-                affected.append(shipment)
+            if baseline_route is None:
                 continue
 
-            if event.target_type == "node" and event.target_id in route.path:
-                affected.append(shipment)
-                continue
+            if event.target_type == "node":
+                if event.target_id in baseline_route.path:
+                    affected.append(shipment)
 
-            if event.target_type == "edge":
-                if any(leg.edge_id == event.target_id for leg in route.legs):
+            elif event.target_type == "edge":
+                if any(
+                    leg.edge_id == event.target_id
+                    for leg in baseline_route.legs
+                ):
                     affected.append(shipment)
 
         return affected

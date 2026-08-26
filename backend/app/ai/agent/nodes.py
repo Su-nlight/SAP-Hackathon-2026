@@ -78,7 +78,7 @@ class AgentNodes:
         disruption = state.get("disruption")
         if not disruption:
             # Fallback if state is somehow missing disruption object
-            disruption = self._ds._log.get(state["disruption_id"])
+            disruption = self._ds.get(state["disruption_id"])
 
         affected = self._ns.find_affected_shipments(disruption, current)
         
@@ -121,7 +121,7 @@ class AgentNodes:
     async def recommend_node(self, state: SupplyAgentState) -> dict:
         disruption = state.get("disruption")
         if not disruption:
-            disruption = self._ds._log.get(state["disruption_id"])
+            disruption = self._ds.get(state["disruption_id"])
 
         active = self._ds.active()
         decision = self._heal.decide(disruption, active)
