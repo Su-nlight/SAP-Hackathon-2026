@@ -1,11 +1,6 @@
-"""Append-only JSONL event log with startup replay.
-
-The log is the system of record. Current network state is always
-derived by applying ACTIVE events to the seed network — never mutated.
-"""
+"""Append-only JSONL event log with startup replay."""
 from __future__ import annotations
 
-import json
 import threading
 from pathlib import Path
 
@@ -39,6 +34,18 @@ class EventLog:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             with open(self._path, "a", encoding="utf-8") as fh:
                 fh.write(event.model_dump_json() + "\n")
+
+    def delete(self, event_id: str) -> bool:
+        """Delete a mock event and rewrite the JSONL store."""
+        with self._lock:
+            if event_id not in self._events:
+                return False
+            del self._events[event_id]
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._path, "w", encoding="utf-8") as fh:
+                for event in self._events.values():
+                    fh.write(event.model_dump_json() + "\n")
+            return True
 
     def get(self, event_id: str) -> DisruptionEvent | None:
         return self._events.get(event_id)

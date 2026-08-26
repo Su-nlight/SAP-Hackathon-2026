@@ -2,13 +2,13 @@
   {
     "username": "acme_admin",
     "company_id": "acme",
-    "password_hash": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
+    "password_hash": "$2b$12$m6TeDKhJb3WwLX0g0ReViukA1rJ2Pz8LlQhB.5cYTWPTzYpQ.7.G.",
     "roles": ["operator", "admin"]
   },
   {
     "username": "globex_admin",
     "company_id": "globex",
-    "password_hash": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
+    "password_hash": "$2b$12$m6TeDKhJb3WwLX0g0ReViukA1rJ2Pz8LlQhB.5cYTWPTzYpQ.7.G.",
     "roles": ["operator", "admin"]
   }
 ]

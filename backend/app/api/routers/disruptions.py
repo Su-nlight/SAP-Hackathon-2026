@@ -43,10 +43,18 @@ async def create_disruption(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     company_id = identity.get("company_id", "acme")
-    background_tasks.add_task(sap.mirror_event, event, company_id=company_id, action="created")
+
+    if settings.data_provider == "sap":
+        background_tasks.add_task(
+            sap.mirror_event,
+            event,
+            company_id=company_id,
+            action="created",
+        )
 
     agent_result = None
     agent_error = None
+
     if settings.ai_enabled:
         try:
             agent_result = await agent.run(
@@ -152,7 +160,10 @@ async def ingest_raw_alert(
 
 @router.get("")
 async def list_disruptions(
-    status: str | None = Query(default=None, pattern="^(active|resolved)$"),
+    status: str | None = Query(
+        default=None,
+        pattern="^(active|resolved)$",
+    ),
     ds: DisruptionService = Depends(get_disruption_service),
 ):
     if status == "active":
@@ -161,7 +172,10 @@ async def list_disruptions(
         events = ds.resolved()
     else:
         events = ds.all()
-    return {"disruptions": [e.model_dump(mode="json") for e in events]}
+
+    return {
+        "disruptions": [e.model_dump(mode="json") for e in events]
+    }
 
 
 @router.get("/{event_id}")
@@ -170,8 +184,13 @@ async def get_disruption(
     ds: DisruptionService = Depends(get_disruption_service),
 ):
     event = ds.get(event_id)
+
     if event is None:
-        raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown disruption {event_id}",
+        )
+
     return {"event": event.model_dump(mode="json")}
 
 
@@ -179,33 +198,80 @@ async def get_disruption(
 async def approve_disruption(
     event_id: str,
     body: ApprovalIn,
-    agent: SupplyAgent = Depends(get_agent),
+    ds: DisruptionService = Depends(get_disruption_service),
+    sap: SapService = Depends(get_sap_service),
 ):
-    if not settings.ai_enabled:
-        return {
-            "thread_id": f"agent-{event_id}",
-            "approved": body.approved,
-            "status": "approved" if body.approved else "rejected",
-            "note": "Approved via fallback (AI disabled)",
-        }
-    try:
-        result = await agent.resume(
-            thread_id=f"agent-{event_id}",
-            approved=body.approved,
-            feedback=body.feedback,
+    if not body.approved:
+        raise HTTPException(
+            status_code=400,
+            detail="Rejection workflow is not implemented yet.",
         )
-        return {
-            "thread_id": result["thread_id"],
-            "approved": body.approved,
-            "status": result["state"].get("status"),
-        }
+
+    if ds.get(event_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown disruption {event_id}",
+        )
+
+    if settings.ai_enabled:
+        try:
+            result = await agent.resume(
+                thread_id=f"agent-{event_id}",
+                approved=True,
+                feedback=body.feedback,
+            )
+
+            return {
+                "event_id": event_id,
+                "thread_id": result["thread_id"],
+                "approved": True,
+                "status": result["state"].get("status"),
+                "provider": settings.data_provider,
+            }
+
+        except Exception as exc:
+            try:
+                if settings.data_provider == "sap":
+                    sap.approve_disruption(event_id)
+                else:
+                    ds.approve(event_id)
+
+                return {
+                    "event_id": event_id,
+                    "thread_id": f"agent-{event_id}",
+                    "approved": True,
+                    "status": "approved",
+                    "provider": settings.data_provider,
+                    "fallback_reason": str(exc),
+                }
+
+            except Exception as fallback_exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        f"AI approval failed: {exc}; "
+                        f"fallback approval failed: {fallback_exc}"
+                    ),
+                ) from fallback_exc
+
+    try:
+        if settings.data_provider == "sap":
+            sap.approve_disruption(event_id)
+        else:
+            ds.approve(event_id)
+
     except Exception as exc:
-        return {
-            "thread_id": f"agent-{event_id}",
-            "approved": body.approved,
-            "status": "approved" if body.approved else "rejected",
-            "fallback_reason": str(exc),
-        }
+        raise HTTPException(
+            status_code=502,
+            detail=f"Approval failed: {exc}",
+        ) from exc
+
+    return {
+        "event_id": event_id,
+        "approved": True,
+        "status": "approved",
+        "provider": settings.data_provider,
+    }
 
 
 @router.get("/{event_id}/state")
@@ -230,7 +296,7 @@ async def get_disruption_state(
     }
 
 
-@router.delete("/{event_id}")
+@router.post("/{event_id}/resolve")
 async def resolve_disruption(
     event_id: str,
     background_tasks: BackgroundTasks,
@@ -239,8 +305,51 @@ async def resolve_disruption(
     sap: SapService = Depends(get_sap_service),
 ):
     resolved = ds.resolve(event_id)
+
     if resolved is None:
-        raise HTTPException(status_code=404, detail=f"Unknown disruption {event_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown disruption {event_id}",
+        )
+
     company_id = identity.get("company_id", "acme")
-    background_tasks.add_task(sap.mirror_event, resolved, company_id=company_id, action="resolved")
+
+    if settings.data_provider == "sap":
+        background_tasks.add_task(
+            sap.mirror_event,
+            resolved,
+            company_id=company_id,
+            action="resolved",
+        )
+
     return {"event": resolved.model_dump(mode="json")}
+
+
+@router.delete("/{event_id}")
+async def delete_disruption(
+    event_id: str,
+    ds: DisruptionService = Depends(get_disruption_service),
+    sap: SapService = Depends(get_sap_service),
+):
+    if ds.get(event_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown disruption {event_id}",
+        )
+
+    if settings.data_provider == "sap":
+        try:
+            sap.delete_disruption(event_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"SAP deletion failed: {exc}",
+            ) from exc
+    else:
+        ds.delete(event_id)
+
+    return {
+        "event_id": event_id,
+        "deleted": True,
+        "provider": settings.data_provider,
+    }
