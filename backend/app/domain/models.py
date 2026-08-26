@@ -36,6 +36,7 @@ class Node(BaseModel):
     capacity: float = 1.0  # relative throughput capacity 0..1
     inventory: float = 0.0  # buffer stock available at this node
     status: Literal["online", "degraded", "offline"] = "online"
+    supplier_id: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -74,6 +75,7 @@ class Shipment(BaseModel):
     budget_per_ton: float = Field(ge=0)
     priority: Literal["low", "standard", "high", "critical"] = "standard"
     mode_preference: Optional[EdgeMode] = None
+    supplier_id: Optional[str] = None
 
 
 class DisruptionEvent(BaseModel):
@@ -136,6 +138,12 @@ class RouteAlternative(BaseModel):
     feasibility: Literal["feasible", "infeasible"] = "feasible"
     infeasible_reasons: list[str] = Field(default_factory=list)
 
+class SplitAllocation(BaseModel):
+    shipment_id: str
+    route_id: str
+    cargo_tons: float = Field(gt=0)
+    percentage: float = Field(gt=0, le=100)
+
 
 class HealDecision(BaseModel):
     action: HealAction
@@ -143,6 +151,7 @@ class HealDecision(BaseModel):
     alternatives: list[RouteAlternative] = Field(default_factory=list)
     wait_hours: Optional[float] = None  # for wait_hold
     affected_shipment_ids: list[str] = Field(default_factory=list)
+    split_allocations: list[SplitAllocation] = Field(default_factory=list)
 
 
 class ImpactAssessment(BaseModel):
