@@ -21,6 +21,11 @@ from ..schemas import DisruptionParse, ImpactAssessment
 from .state import SupplyAgentState
 
 
+def _log_background_task_error(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception():
+        print(f"[AgentNodes] Background archive task failed: {task.exception()}")
+
+
 class AgentNodes:
     def __init__(
         self,
@@ -152,7 +157,7 @@ class AgentNodes:
         disruption = state.get("disruption") or self._ds._log.get(state["disruption_id"])
         assessment = state.get("assessment")
 
-        # Archive the approved decision into durable log + Pinecone RAG[cite: 1]
+        # Archive the approved decision into durable log + Pinecone RAG
         if self._archive and disruption:
             record = DecisionRecord(
                 id=f"dec-{uuid.uuid4().hex}",
@@ -170,7 +175,8 @@ class AgentNodes:
                 approved=True,
                 feedback=state.get("feedback"),
             )
-            asyncio.create_task(self._archive.archive(record))
+            task = asyncio.create_task(self._archive.archive(record))
+            task.add_done_callback(_log_background_task_error)
 
         await self._hub.publish({
             "type": "plan.approved",
@@ -182,9 +188,9 @@ class AgentNodes:
         })
         return {"status": AgentStatus.APPROVED.value, "approved": True}
 
-    # ---- archive rejected decisions (Section 15 open design) ---------
+    # ---- archive rejected decisions ----------------------------------
     async def archive_rejected_node(self, state: SupplyAgentState) -> dict:
-        """Archive rejected recommendations so users can query past turned-down options[cite: 1]."""
+        """Archive rejected recommendations so users can query past turned-down options."""
         decision = state.get("decision")
         disruption = state.get("disruption") or self._ds._log.get(state["disruption_id"])
         assessment = state.get("assessment")
@@ -206,6 +212,7 @@ class AgentNodes:
                 approved=False,
                 feedback=state.get("feedback"),
             )
-            asyncio.create_task(self._archive.archive(record))
+            task = asyncio.create_task(self._archive.archive(record))
+            task.add_done_callback(_log_background_task_error)
 
         return {"status": AgentStatus.REJECTED.value, "approved": False}
