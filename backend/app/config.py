@@ -1,12 +1,13 @@
 """Application configuration via pydantic-settings (env vars + .env file)."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent  # repo root
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -46,14 +47,23 @@ class Settings(BaseSettings):
     auth_mode: str = "auto"
     mock_users_path: Path = BASE_DIR / "data" / "users.json"
 
+    # --- decision archive & chat (RAG) ---
+    pinecone_api_key: str = ""
+    pinecone_index_name: str = "supplychain-decisions"
+    embedding_model: str = "models/text-embedding-004"
+    gemini_api_key: str = ""
+    decisions_archive_path: Path = BASE_DIR / "data" / "decisions_archive.jsonl"
+
+    @property
+    def gemini_api_key_resolved(self) -> str:
+        return self.gemini_api_key or _from_env("GEMINI_API_KEY", "")
+
     @property
     def omniroute_api_key_resolved(self) -> str:
         return self.omniroute_api_key or _from_env("OMNIROUTE_API_KEY", "")
 
 
 def _from_env(name: str, default: str) -> str:
-    import os
-
     return os.environ.get(name, default)
 
 
