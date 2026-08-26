@@ -166,7 +166,7 @@ class DisruptionParse(BaseModel):
 
 
 class CompanyLLMConfig(BaseModel):
-    """Per-company LLM choice. The special feature."""
+    """Per-company LLM choice."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -197,3 +197,38 @@ class AppState(BaseModel):
     node_count: int = 0
     edge_count: int = 0
     healthy: bool = True
+
+
+class DecisionRecord(BaseModel):
+    """A finalized (approved) heal decision, archived for search/chat."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    company_id: str
+    disruption_id: str
+    disruption_type: DisruptionType | str
+    target_type: Literal["node", "edge"] | str
+    target_id: str
+    severity: Severity | str
+    action: HealAction | str
+    reason: str
+    narrative: str = ""
+    urgency: Literal["low", "medium", "high", "critical"] | str = "medium"
+    affected_shipment_ids: list[str] = Field(default_factory=list)
+    approved: bool = True
+    feedback: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+    def to_embedding_text(self) -> str:
+        """Single text blob used for embedding — keep this deterministic."""
+        d_type = self.disruption_type.value if hasattr(self.disruption_type, "value") else str(self.disruption_type)
+        act = self.action.value if hasattr(self.action, "value") else str(self.action)
+        sev = self.severity.value if hasattr(self.severity, "value") else str(self.severity)
+        return (
+            f"Disruption: {d_type} at {self.target_type} {self.target_id}, "
+            f"severity {sev}, urgency {self.urgency}.\n"
+            f"Decision: {act}. Reason: {self.reason}.\n"
+            f"Narrative: {self.narrative}\n"
+            f"Approved: {self.approved}."
+        )
