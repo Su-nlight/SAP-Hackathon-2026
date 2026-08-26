@@ -45,8 +45,12 @@ log = EventLog(settings.event_log_path)
 log.load()
 hub = SinkHub()
 engine = NetworkXEngine()
-network_service = NetworkService(store, _load_shipments())
 routing_service = RoutingService(engine)
+network_service = NetworkService(
+    store,
+    _load_shipments(),
+    routing_service,
+)
 
 sap_service = SapService()
 

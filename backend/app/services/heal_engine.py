@@ -14,14 +14,12 @@ LLM only narrates the decision — it never makes it.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from ..domain.constants import HealAction
 from ..domain.models import (
     DisruptionEvent,
     HealDecision,
-    Network,
-    RouteAlternative,
     Shipment,
 )
 from ..services.network_service import NetworkService
@@ -56,7 +54,7 @@ class HealEngine:
                 sample = affected[0]
                 alt = self._rs.shortest(network, sample, active_events)
                 if alt is not None:
-                    penalty = alt.total_time_hours - _baseline_time(sample)
+                    penalty = alt.total_time_hours - self._baseline_time(sample, now)
                     if wait_hours < penalty:
                         return HealDecision(
                             action=HealAction.WAIT_HOLD,
@@ -81,8 +79,25 @@ class HealEngine:
             )
 
         if feasible:
+            deadline_alts = [
+                a for a in alts
+                if a.total_time_hours > self._baseline_time(shipment, now)
+                and a.feasibility == "infeasible"
+                and any("deadline" in r.lower() for r in a.infeasible_reasons)
+            ]
+            if deadline_alts:
+                best = min(deadline_alts, key=lambda a: a.total_time_hours)
+                return HealDecision(
+                    action=HealAction.EXPEDITE,
+                    reason=(
+                        f"Expedite {shipment.id}: standard alternatives miss the deadline; "
+                        f"fastest available route takes {best.total_time_hours:.1f}h."
+                    ),
+                    alternatives=alts,
+                    affected_shipment_ids=[s.id for s in affected],
+                )
             best = feasible[0]
-            if best.total_time_hours > _baseline_time(shipment) + 1e-9:
+            if best.total_time_hours > self._baseline_time(shipment, now) + 1e-9:
                 return HealDecision(
                     action=HealAction.REROUTE,
                     reason=(
@@ -114,11 +129,18 @@ class HealEngine:
         )
 
 
-def _baseline_time(shipment: Shipment) -> float:
-    # Prototype baseline: direct great-circle proxy. Replaced by the
-    # pre-disruption planned route in the full implementation.
-    return 24.0
+    def _baseline_time(
+        self,
+        shipment: Shipment,
+        now: datetime | None = None,
+    ) -> float:
+        network = self._ns.current([])
+        route = self._rs.shortest(network, shipment, [], alpha=0.5)
 
+        if route is not None:
+            return route.total_time_hours
+
+        return 24.0
 
 def _priority_rank(s: Shipment) -> int:
     return {"low": 0, "standard": 1, "high": 2, "critical": 3}[s.priority]

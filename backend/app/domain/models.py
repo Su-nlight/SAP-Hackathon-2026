@@ -41,7 +41,6 @@ class Node(BaseModel):
 
 class Edge(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     id: str
     source: str
     target: str
@@ -53,6 +52,7 @@ class Edge(BaseModel):
     reliability: float = Field(default=0.9, ge=0, le=1)
     co2_per_ton_km: float = Field(default=0.02, ge=0)
     schedule: list[str] = Field(default_factory=list)  # departure windows (ISO times)
+    status: Literal["online", "degraded", "offline"] = "online"
 
 
 class Network(BaseModel):

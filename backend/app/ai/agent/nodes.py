@@ -47,7 +47,7 @@ class AgentNodes:
         parsed: DisruptionParse = await structured.ainvoke(msgs)
         
         # --- PATCH: Check if already registered by the Router ---
-        event = self._ds._log.get(state["disruption_id"])
+        event = self._ds.get(state["disruption_id"])
         
         if not event:
             # Only register if it wasn't already registered by create_disruption
