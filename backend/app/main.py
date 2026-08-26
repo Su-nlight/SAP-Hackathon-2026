@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.deps import log, sap_service
+from .api.deps import close_agent, initialize_agent, log, sap_service
 from .api.routers import auth, chat, decisions, disruptions, events, network, routes, sap, scenarios, tenants
 from .config import settings
 
@@ -46,6 +46,14 @@ def create_app() -> FastAPI:
             "active_disruptions": len(log.active()),
             "sap_connected": sap_service.status()["sap_connected"],
         }
+
+    @app.on_event("startup")
+    async def _initialize_agent():
+        await initialize_agent()
+
+    @app.on_event("shutdown")
+    async def _close_agent():
+        await close_agent()
 
     @app.on_event("startup")
     async def _sap_sync_on_boot():

@@ -49,6 +49,18 @@ class ApprovalFinalizationService:
         self._hub = hub
         self._locks: dict[str, asyncio.Lock] = {}
 
+    async def _agent_state(self, thread_id: str):
+        result = self._agent.state(thread_id)
+        if asyncio.iscoroutine(result):
+            return await result
+        return result
+
+    async def _agent_is_awaiting_approval(self, thread_id: str) -> bool:
+        result = self._agent.is_awaiting_approval(thread_id)
+        if asyncio.iscoroutine(result):
+            return await result
+        return result
+
     async def approve(
         self,
         event_id: str,
@@ -68,13 +80,13 @@ class ApprovalFinalizationService:
         if event is None:
             raise ProviderApprovalError(f"Unknown disruption {event_id}")
 
-        state = self._agent.state(thread_id)
+        state = await self._agent_state(thread_id)
         values = state["values"]
         agent_is_approved = (
             values.get("status") == AgentStatus.APPROVED.value
         )
 
-        if not agent_is_approved and not self._agent.is_awaiting_approval(thread_id):
+        if not agent_is_approved and not await self._agent_is_awaiting_approval(thread_id):
             raise ApprovalNotPendingError(
                 f"Agent thread {thread_id} is not awaiting approval"
             )
