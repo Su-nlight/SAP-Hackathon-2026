@@ -69,7 +69,6 @@ disruption_service = DisruptionService(
 )
 
 heal_engine = HealEngine(network_service, routing_service)
-scenario_service = ScenarioService(disruption_service)
 
 # Decision Archive & Chat singletons
 decision_archive_service = DecisionArchiveService()
@@ -85,6 +84,7 @@ agent_nodes = AgentNodes(
 )
 
 agent = SupplyAgent(agent_nodes)
+scenario_service = ScenarioService(disruption_service, agent)
 _auth_service = AuthService()
 
 bearer_scheme = HTTPBearer(auto_error=False)

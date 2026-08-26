@@ -200,12 +200,43 @@ async def approve_disruption(
     body: ApprovalIn,
     ds: DisruptionService = Depends(get_disruption_service),
     sap: SapService = Depends(get_sap_service),
+    agent: SupplyAgent = Depends(get_agent),
 ):
     if not body.approved:
-        raise HTTPException(
-            status_code=400,
-            detail="Rejection workflow is not implemented yet.",
-        )
+        if not settings.ai_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="AI rejection workflow requires AI to be enabled.",
+            )
+
+        if ds.get(event_id) is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown disruption {event_id}",
+            )
+
+        try:
+            result = await agent.resume(
+                thread_id=f"agent-{event_id}",
+                approved=False,
+                feedback=body.feedback,
+            )
+
+            return {
+                "event_id": event_id,
+                "thread_id": result["thread_id"],
+                "approved": False,
+                "status": result["state"].get("status"),
+                "awaiting_approval": result["awaiting_approval"],
+                "next_nodes": result["next_nodes"],
+                "provider": settings.data_provider,
+            }
+
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Rejection workflow failed: {exc}",
+            ) from exc
 
     if ds.get(event_id) is None:
         raise HTTPException(

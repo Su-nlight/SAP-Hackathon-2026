@@ -62,7 +62,7 @@ def _groq(cfg: CompanyLLMConfig):
 
     return ChatGroq(
         model=cfg.model or "llama-3.3-70b-versatile",
-        api_key=os.environ.get("GROQ_API_KEY", ""),
+        api_key=settings.groq_api_key_resolved,
         temperature=cfg.temperature,
         timeout=settings.ai_timeout_seconds,
     )

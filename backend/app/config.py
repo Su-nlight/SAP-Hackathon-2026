@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     omniroute_base_url: str = "http://localhost:20128/v1"
     omniroute_api_key: str = ""
     default_temperature: float = 0.2
+    groq_api_key: str = ""
 
     # Graph defaults
     default_alpha: float = 0.5
@@ -61,6 +62,10 @@ class Settings(BaseSettings):
     @property
     def omniroute_api_key_resolved(self) -> str:
         return self.omniroute_api_key or _from_env("OMNIROUTE_API_KEY", "")
+
+    @property
+    def groq_api_key_resolved(self) -> str:
+        return self.groq_api_key or _from_env("GROQ_API_KEY", "")
 
 
 def _from_env(name: str, default: str) -> str:

@@ -5,6 +5,7 @@ from typing import Any, Optional, TypedDict
 
 from ..schemas import DisruptionParse, ImpactAssessment
 from ...domain.models import HealDecision
+from ...domain.models import DisruptionEvent, HealDecision
 
 
 class SupplyAgentState(TypedDict, total=False):
@@ -15,6 +16,7 @@ class SupplyAgentState(TypedDict, total=False):
     # parse step
     parse_result: Optional[DisruptionParse]
     disruption_id: Optional[str]
+    disruption: Optional[DisruptionEvent]
 
     # assess step
     assessment: Optional[ImpactAssessment]

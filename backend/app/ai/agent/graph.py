@@ -65,7 +65,7 @@ class SupplyAgent:
         else:
             approved = resume == "approved"
             feedback = None
-        return {"approved": approved, "feedback": feedback}
+        return {"approved": approved, "feedback": feedback , "disruption_id": state.get("disruption_id")}
 
     @staticmethod
     def _route_after_approval(state: SupplyAgentState) -> str:
@@ -100,13 +100,39 @@ class SupplyAgent:
             "next_nodes": list(snapshot.next),
         }
 
-    async def resume(self, thread_id: str, approved: bool, feedback: Optional[str] = None) -> dict:
+    async def resume(
+        self,
+        thread_id: str,
+        approved: bool,
+        feedback: Optional[str] = None,
+    ) -> dict:
         config = {"configurable": {"thread_id": thread_id}}
-        payload: Any = {"approved": approved}
+
+        snapshot = self.graph.get_state(config)
+
+        if snapshot is None or not snapshot.values:
+            raise ValueError(f"No agent state for thread {thread_id}")
+
+        payload: Any = {
+            "approved": approved,
+        }
+
         if feedback:
             payload["feedback"] = feedback
-        result = await self.graph.ainvoke(Command(resume=payload), config=config)
+
+        values = snapshot.values
+
+        if not values.get("disruption_id"):
+            event_id = thread_id.removeprefix("agent-")
+            payload["disruption_id"] = event_id
+
+        result = await self.graph.ainvoke(
+            Command(resume=payload),
+            config=config,
+        )
+
         snapshot = self.graph.get_state(config)
+
         return {
             "thread_id": thread_id,
             "state": result,

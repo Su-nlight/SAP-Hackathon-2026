@@ -43,44 +43,41 @@ class AgentNodes:
         self._hub = hub
         self._archive = archive_service
 
-    # ---- parse -------------------------------------------------------
     async def parse_node(self, state: SupplyAgentState) -> dict:
-        model = self._registry.get_chat_model(state["company_id"])
-        structured = model.with_structured_output(DisruptionParse)
-
-        msgs = [
-            SystemMessage(content=PARSE_SYSTEM),
-            HumanMessage(content=state["raw_alert"]),
-        ]
-        parsed: DisruptionParse = await structured.ainvoke(msgs)
-
-        event = self._ds._log.get(state["disruption_id"])
+        event = self._ds.get(state["disruption_id"])
 
         if not event:
-            event = DisruptionEvent(
-                id=state["disruption_id"],
-                type=parsed.type,
-                target_type=parsed.target_type,
-                target_id=parsed.target_id,
-                severity=parsed.severity,
-                start_time=datetime.now().astimezone(),
-                expected_end=parsed.expected_end,
-                raw_text=state["raw_alert"],
+            raise ValueError(
+                f"Disruption {state['disruption_id']} is missing from disruption service"
             )
-            event = self._ds.register(event)
 
-        return {"disruption": event, "status": AgentStatus.PARSING.value}
+        parsed = DisruptionParse(
+            type=event.type,
+            target_type=event.target_type,
+            target_id=event.target_id,
+            severity=event.severity,
+            expected_end=event.expected_end,
+            confidence=1.0,
+            notes=event.raw_text,
+        )
 
-    # ---- assess ------------------------------------------------------
+        return {
+            "parse_result": parsed,
+            "disruption": event,
+            "status": AgentStatus.PARSING.value,
+        }
+
     async def assess_node(self, state: SupplyAgentState) -> dict:
         model = self._registry.get_chat_model(state["company_id"])
         structured = model.with_structured_output(ImpactAssessment)
 
-        current = self._ns.current(self._ds.active())
         disruption = state.get("disruption")
-        if not disruption:
-            disruption = self._ds._log.get(state["disruption_id"])
+        if disruption is None:
+            raise ValueError(
+                f"Disruption {state.get('disruption_id')} is missing from agent state"
+            )
 
+        current = self._ns.current(self._ds.active())
         affected = self._ns.find_affected_shipments(disruption, current)
 
         parse_result = state.get("parse_result")
@@ -91,15 +88,28 @@ class AgentNodes:
 
         context += f"Affected Shipments: {[s.id for s in affected]}\n"
 
+        feedback = state.get("feedback")
+        if feedback:
+            context += f"Previous approval feedback: {feedback}\n"
+
         msgs = [
             SystemMessage(content=ASSESS_SYSTEM),
-            HumanMessage(content=f"Analyze impact based on ground truth:\n{context}"),
+            HumanMessage(
+                content=(
+                    "Analyze impact based on ground truth and incorporate any "
+                    "previous approval feedback:\n"
+                    f"{context}"
+                )
+            )
         ]
         assessment: ImpactAssessment = await structured.ainvoke(msgs)
-        return {"assessment": assessment, "status": AgentStatus.ASSESSING.value}
+
+        return {
+            "assessment": assessment,
+            "status": AgentStatus.ASSESSING.value,
+        }
 
     def _ground_truth(self, state: SupplyAgentState) -> str:
-        """Real engine data, not LLM guesswork."""
         parsed = state["parse_result"]
         ev = DisruptionEvent(
             id=state.get("disruption_id", "x"),
@@ -118,46 +128,64 @@ class AgentNodes:
         ]
         return "\n".join(lines)
 
-    # ---- recommend (DETERMINISTIC — no LLM) --------------------------
     async def recommend_node(self, state: SupplyAgentState) -> dict:
         disruption = state.get("disruption")
-        if not disruption:
-            disruption = self._ds._log.get(state["disruption_id"])
+        if disruption is None:
+            raise ValueError(
+                f"Disruption {state.get('disruption_id')} is missing from agent state"
+            )
 
         active = self._ds.active()
         decision = self._heal.decide(disruption, active)
 
-        return {"decision": decision, "status": AgentStatus.RECOMMENDING.value}
+        return {
+            "decision": decision,
+            "status": AgentStatus.RECOMMENDING.value,
+        }
 
-    # ---- narrate -----------------------------------------------------
     async def narrate_node(self, state: SupplyAgentState) -> dict:
         model = self._registry.get_chat_model(state["company_id"])
         decision = state["decision"]
+
         payload = {
             "action": decision.action.value,
             "reason": decision.reason,
-            "alternatives": [a.model_dump(mode="json") for a in decision.alternatives],
+            "alternatives": [
+                a.model_dump(mode="json")
+                for a in decision.alternatives
+            ],
             "affected_shipments": decision.affected_shipment_ids,
         }
+
         msgs = [
             SystemMessage(content=NARRATE_SYSTEM),
             HumanMessage(
                 content=(
                     f"Decision from engine:\n{payload}\n"
-                    f"Assessment:\n{state.get('assessment').model_dump_json() if state.get('assessment') else 'none'}"
+                    f"Assessment:\n"
+                    f"{state.get('assessment').model_dump_json() if state.get('assessment') else 'none'}"
                 )
             ),
         ]
-        resp = await model.ainvoke(msgs)
-        return {"narrative": resp.content, "status": AgentStatus.AWAITING_APPROVAL.value}
 
-    # ---- apply plan (post-approval, pure code) -----------------------
+        resp = await model.ainvoke(msgs)
+
+        return {
+            "narrative": resp.content,
+            "status": AgentStatus.AWAITING_APPROVAL.value,
+        }
+
     async def apply_plan_node(self, state: SupplyAgentState) -> dict:
         decision = state["decision"]
-        disruption = state.get("disruption") or self._ds._log.get(state["disruption_id"])
+
+        disruption = state.get("disruption")
+        if disruption is None:
+            raise ValueError(
+                f"Disruption {state.get('disruption_id')} is missing from agent state"
+            )
+
         assessment = state.get("assessment")
 
-        # Archive the approved decision into durable log + Pinecone RAG
         if self._archive and disruption:
             record = DecisionRecord(
                 id=f"dec-{uuid.uuid4().hex}",
@@ -170,11 +198,16 @@ class AgentNodes:
                 action=decision.action,
                 reason=decision.reason,
                 narrative=state.get("narrative") or "",
-                urgency=getattr(assessment, "urgency", "medium") if assessment else "medium",
+                urgency=getattr(
+                    assessment,
+                    "urgency",
+                    "medium",
+                ) if assessment else "medium",
                 affected_shipment_ids=decision.affected_shipment_ids,
                 approved=True,
                 feedback=state.get("feedback"),
             )
+
             task = asyncio.create_task(self._archive.archive(record))
             task.add_done_callback(_log_background_task_error)
 
@@ -186,13 +219,21 @@ class AgentNodes:
                 "reason": decision.reason,
             },
         })
-        return {"status": AgentStatus.APPROVED.value, "approved": True}
 
-    # ---- archive rejected decisions ----------------------------------
+        return {
+            "status": AgentStatus.APPROVED.value,
+            "approved": True,
+        }
+
     async def archive_rejected_node(self, state: SupplyAgentState) -> dict:
-        """Archive rejected recommendations so users can query past turned-down options."""
         decision = state.get("decision")
-        disruption = state.get("disruption") or self._ds._log.get(state["disruption_id"])
+
+        disruption = state.get("disruption")
+        if disruption is None:
+            raise ValueError(
+                f"Disruption {state.get('disruption_id')} is missing from agent state"
+            )
+
         assessment = state.get("assessment")
 
         if self._archive and disruption and decision:
@@ -207,12 +248,20 @@ class AgentNodes:
                 action=decision.action,
                 reason=decision.reason,
                 narrative=state.get("narrative") or "",
-                urgency=getattr(assessment, "urgency", "medium") if assessment else "medium",
+                urgency=getattr(
+                    assessment,
+                    "urgency",
+                    "medium",
+                ) if assessment else "medium",
                 affected_shipment_ids=decision.affected_shipment_ids,
                 approved=False,
                 feedback=state.get("feedback"),
             )
+
             task = asyncio.create_task(self._archive.archive(record))
             task.add_done_callback(_log_background_task_error)
 
-        return {"status": AgentStatus.REJECTED.value, "approved": False}
+        return {
+            "status": AgentStatus.REJECTED.value,
+            "approved": False,
+        }
