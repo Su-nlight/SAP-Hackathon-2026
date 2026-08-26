@@ -20,7 +20,17 @@ class MockDisruptionProvider(DisruptionProvider):
         return event
 
     def approve(self, event_id: str) -> DisruptionEvent | None:
-        return self._log.get(event_id)
+        event = self._log.get(event_id)
+        if event is None:
+            return None
+        if event.status == DisruptionStatus.APPROVED:
+            return event
+
+        approved = event.model_copy(
+            update={"status": DisruptionStatus.APPROVED}
+        )
+        self._log.append(approved)
+        return approved
 
     def resolve(self, event_id: str) -> DisruptionEvent | None:
         ev = self._log.get(event_id)

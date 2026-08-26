@@ -104,7 +104,10 @@ class DisruptionEvent(BaseModel):
         return self.expected_end is None
 
     def is_active_at(self, when: Optional[datetime] = None) -> bool:
-        if self.status != DisruptionStatus.ACTIVE:
+        if self.status not in {
+            DisruptionStatus.ACTIVE,
+            DisruptionStatus.APPROVED,
+        }:
             return False
         when = when or utcnow()
         if when < self.start_time:

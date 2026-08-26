@@ -4,6 +4,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
+from ..domain.constants import DisruptionStatus
 from ..domain.models import DisruptionEvent
 
 
@@ -51,7 +52,14 @@ class EventLog:
         return self._events.get(event_id)
 
     def active(self) -> list[DisruptionEvent]:
-        return [e for e in self._events.values() if e.status == "active"]
+        return [
+            event
+            for event in self._events.values()
+            if event.status in {
+                DisruptionStatus.ACTIVE,
+                DisruptionStatus.APPROVED,
+            }
+        ]
 
     def all(self) -> list[DisruptionEvent]:
         return list(self._events.values())

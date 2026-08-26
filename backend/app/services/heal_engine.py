@@ -251,14 +251,22 @@ class HealEngine:
             candidate = deepcopy(shipment)
             candidate.origin = supplier.id
 
-            route = self._rs.shortest(
+            alternatives = self._rs.alternatives(
                 network,
                 candidate,
                 active_events,
                 now=now,
             )
 
-            if route is not None and route.feasibility == "feasible":
+            route = next(
+                (
+                    alternative
+                    for alternative in alternatives
+                    if alternative.feasibility == "feasible"
+                ),
+                None,
+            )
+            if route is not None:
                 results.append((supplier.id, route))
 
         return sorted(results, key=lambda x: x[1].total_time_hours)
