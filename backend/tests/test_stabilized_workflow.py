@@ -22,7 +22,14 @@ from app.services.scenario_service import ScenarioService
 from app.store.event_log import EventLog
 from app.store.network_store import NetworkStore
 from app.streaming.hub import SinkHub
-
+from app.api.deps import (
+    get_agent,
+    get_approval_finalization_service,
+    get_current_identity,
+    get_disruption_service,
+)
+from app.services.approval_finalization_service import ApprovalFinalizationService
+from app.services.decision_archive_service import DecisionArchiveService
 
 def _event(event_id: str = "event-1") -> DisruptionEvent:
     return DisruptionEvent(
@@ -69,20 +76,55 @@ class RecordingAgent:
             "next_nodes": ["approval"],
         }
 
-    async def resume(self, thread_id: str, approved: bool, feedback: str | None = None) -> dict:
+    async def resume(
+        self,
+        thread_id: str,
+        approved: bool,
+        feedback: str | None = None,
+    ) -> dict:
         self.resume_calls.append((thread_id, approved, feedback))
+
+        state = {
+            "status": (
+                AgentStatus.APPROVED.value
+                if approved
+                else AgentStatus.AWAITING_APPROVAL.value
+            ),
+            "company_id": "acme",
+            "disruption_id": thread_id.removeprefix("agent-"),
+            "narrative": "Review the deterministic recommendation.",
+            "decision": HealDecision(
+                action=HealAction.REROUTE,
+                reason="A registered disruption requires rerouting.",
+            ),
+            "assessment": None,
+            "feedback": feedback,
+        }
+
         return {
             "thread_id": thread_id,
-            "state": {
-                "status": (
-                    AgentStatus.APPROVED.value
-                    if approved
-                    else AgentStatus.AWAITING_APPROVAL.value
-                ),
-            },
+            "state": state,
             "awaiting_approval": not approved,
             "next_nodes": [] if approved else ["approval"],
         }
+
+    def state(self, thread_id: str) -> dict:
+        return {
+            "values": {
+                "status": AgentStatus.AWAITING_APPROVAL.value,
+                "company_id": "acme",
+                "disruption_id": thread_id.removeprefix("agent-"),
+                "decision": HealDecision(
+                    action=HealAction.REROUTE,
+                    reason="A registered disruption requires rerouting.",
+                ),
+                "narrative": "Review the deterministic recommendation.",
+            },
+            "next_nodes": ["approval"],
+        }
+
+    def is_awaiting_approval(self, thread_id: str) -> bool:
+        return True
 
 
 def _mock_disruption_service(tmp_path: Path) -> tuple[DisruptionService, RecordingMockProvider]:
@@ -100,17 +142,28 @@ def _mock_disruption_service(tmp_path: Path) -> tuple[DisruptionService, Recordi
 def _disruptions_client(
     disruptions: DisruptionService,
     agent: RecordingAgent,
+    archive_path: Path | None = None,
 ) -> TestClient:
     app = FastAPI()
     app.include_router(disruptions_router)
+
+    archive = DecisionArchiveService(archive_path)
+    finalizer = ApprovalFinalizationService(
+        agent,
+        disruptions,
+        archive,
+        SinkHub(),
+    )
+
     app.dependency_overrides[get_current_identity] = lambda: {
         "sub": "acme_admin",
         "company_id": "acme",
     }
     app.dependency_overrides[get_disruption_service] = lambda: disruptions
     app.dependency_overrides[get_agent] = lambda: agent
-    return TestClient(app)
+    app.dependency_overrides[get_approval_finalization_service] = lambda: finalizer
 
+    return TestClient(app)
 
 def test_raw_alert_is_registered_before_agent_assessment(tmp_path: Path, monkeypatch) -> None:
     disruptions, _ = _mock_disruption_service(tmp_path)
@@ -139,7 +192,11 @@ def test_approval_persists_once_to_mock_provider(tmp_path: Path, monkeypatch) ->
     agent = RecordingAgent(disruptions)
     monkeypatch.setattr(settings, "ai_enabled", True)
     monkeypatch.setattr(settings, "data_provider", "mock")
-    client = _disruptions_client(disruptions, agent)
+    client = _disruptions_client(
+        disruptions,
+        agent,
+        tmp_path / "decisions.jsonl",
+    )
 
     first = client.post("/v1/disruptions/event-1/approve", json={"approved": True})
     second = client.post("/v1/disruptions/event-1/approve", json={"approved": True})

@@ -11,8 +11,19 @@ from ...ai.agent.graph import SupplyAgent
 from ...config import settings
 from ...domain.constants import DisruptionType, HealAction, Severity
 from ...domain.models import DisruptionEvent, HealDecision
+from ...services.approval_finalization_service import (
+    ApprovalFinalizationError,
+    ApprovalNotPendingError,
+    ArchiveFinalizationError,
+    ProviderApprovalError,
+)
 from ...services.disruption_service import DisruptionService
-from ..deps import get_agent, get_current_identity, get_disruption_service
+from ..deps import (
+    get_agent,
+    get_approval_finalization_service,
+    get_current_identity,
+    get_disruption_service,
+)
 
 router = APIRouter(prefix="/v1/disruptions", tags=["disruptions"])
 
@@ -215,6 +226,7 @@ async def approve_disruption(
     body: ApprovalIn,
     ds: DisruptionService = Depends(get_disruption_service),
     agent: SupplyAgent = Depends(get_agent),
+    finalizer = Depends(get_approval_finalization_service),
 ):
     if not body.approved:
         if not settings.ai_enabled:
@@ -252,56 +264,22 @@ async def approve_disruption(
                 detail=f"Rejection workflow failed: {exc}",
             ) from exc
 
-    if ds.get(event_id) is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unknown disruption {event_id}",
-        )
-
-    agent_result = None
-    agent_error = None
-    if settings.ai_enabled:
-        try:
-            agent_result = await agent.resume(
-                thread_id=f"agent-{event_id}",
-                approved=True,
-                feedback=body.feedback,
-            )
-        except Exception as exc:
-            agent_error = str(exc)
-
     try:
-        persisted = ds.approve(event_id)
-        if persisted is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Unknown disruption {event_id}",
-            )
-
-    except Exception as exc:
+        result = await finalizer.approve(event_id, feedback=body.feedback)
+    except ApprovalNotPendingError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ProviderApprovalError as exc:
         raise HTTPException(
             status_code=502,
             detail=f"Approval failed: {exc}",
         ) from exc
+    except ArchiveFinalizationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ApprovalFinalizationError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    response = {
-        "event_id": event_id,
-        "thread_id": (
-            agent_result["thread_id"]
-            if agent_result
-            else f"agent-{event_id}"
-        ),
-        "approved": True,
-        "status": (
-            agent_result["state"].get("status")
-            if agent_result
-            else "approved"
-        ),
-        "provider": settings.data_provider,
-    }
-    if agent_error:
-        response["fallback_reason"] = agent_error
-    return response
+    result["provider"] = settings.data_provider
+    return result
 
 
 @router.get("/{event_id}/state")

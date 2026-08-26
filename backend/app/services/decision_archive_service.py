@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ class DecisionArchiveService:
     def __init__(self, archive_path: Path | None = None) -> None:
         self._path = archive_path or settings.decisions_archive_path
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
 
         self._embeddings = None
         api_key = getattr(settings, "gemini_api_key_resolved", None)
@@ -33,14 +35,31 @@ class DecisionArchiveService:
             except Exception as exc:
                 print(f"[DecisionArchiveService] Failed to initialize embeddings: {exc}")
 
-    async def archive(self, record: DecisionRecord) -> None:
+    async def archive(self, record: DecisionRecord) -> bool:
+        """Persist a decision once by record ID.
+
+        Returns True only when this call creates the JSONL record. Disk-write
+        failures raise so approval finalization can report an explicit partial
+        success instead of silently claiming that archival completed.
+        """
         try:
-            line = record.model_dump_json() + "\n"
-            with self._path.open("a", encoding="utf-8") as f:
-                f.write(line)
+            with self._lock:
+                if self._path.exists():
+                    with self._path.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            if not line.strip():
+                                continue
+                            try:
+                                if json.loads(line).get("id") == record.id:
+                                    return False
+                            except json.JSONDecodeError:
+                                continue
+                with self._path.open("a", encoding="utf-8") as f:
+                    f.write(record.model_dump_json() + "\n")
         except Exception as exc:
-            print(f"[DecisionArchiveService] Error writing to {self._path}: {exc}")
-            return
+            raise DecisionArchiveError(
+                f"Error writing to {self._path}: {exc}"
+            ) from exc
 
         if self._embeddings:
             try:
@@ -59,6 +78,7 @@ class DecisionArchiveService:
                 )
             except Exception as exc:
                 print(f"[DecisionArchiveService] Vector indexing skipped: {exc}")
+        return True
 
     def get_many(self, record_ids: list[str]) -> list[DecisionRecord]:
         if not record_ids or not self._path.exists():
@@ -104,3 +124,7 @@ class DecisionArchiveService:
                 except Exception:
                     continue
         return results[:top_k]
+
+
+class DecisionArchiveError(RuntimeError):
+    """Raised when the durable JSONL decision archive cannot be updated."""

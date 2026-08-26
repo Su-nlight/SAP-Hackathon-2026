@@ -17,6 +17,7 @@ from ..domain.models import Network, Shipment
 from ..engine.networkx_engine import NetworkXEngine
 from ..sap.service import SapService
 from ..services.chat_service import DecisionChatService
+from ..services.approval_finalization_service import ApprovalFinalizationService
 from ..services.decision_archive_service import DecisionArchiveService
 from ..services.disruption_service import DisruptionService
 from ..services.heal_engine import HealEngine
@@ -84,6 +85,12 @@ agent_nodes = AgentNodes(
 )
 
 agent = SupplyAgent(agent_nodes)
+approval_finalization_service = ApprovalFinalizationService(
+    agent,
+    disruption_service,
+    decision_archive_service,
+    hub,
+)
 scenario_service = ScenarioService(disruption_service, agent)
 _auth_service = AuthService()
 
@@ -116,6 +123,10 @@ def get_hub() -> SinkHub:
 
 def get_agent() -> SupplyAgent:
     return agent
+
+
+def get_approval_finalization_service() -> ApprovalFinalizationService:
+    return approval_finalization_service
 
 
 def get_sap_service() -> SapService:

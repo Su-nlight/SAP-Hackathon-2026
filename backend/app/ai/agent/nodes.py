@@ -21,11 +21,6 @@ from ..schemas import DisruptionParse, ImpactAssessment
 from .state import SupplyAgentState
 
 
-def _log_background_task_error(task: asyncio.Task) -> None:
-    if not task.cancelled() and task.exception():
-        print(f"[AgentNodes] Background archive task failed: {task.exception()}")
-
-
 class AgentNodes:
     def __init__(
         self,
@@ -176,50 +171,12 @@ class AgentNodes:
         }
 
     async def apply_plan_node(self, state: SupplyAgentState) -> dict:
-        decision = state["decision"]
+        """Mark the graph complete after provider approval.
 
-        disruption = state.get("disruption")
-        if disruption is None:
-            raise ValueError(
-                f"Disruption {state.get('disruption_id')} is missing from agent state"
-            )
-
-        assessment = state.get("assessment")
-
-        if self._archive and disruption:
-            record = DecisionRecord(
-                id=f"dec-{uuid.uuid4().hex}",
-                company_id=state["company_id"],
-                disruption_id=state["disruption_id"],
-                disruption_type=disruption.type,
-                target_type=disruption.target_type,
-                target_id=disruption.target_id,
-                severity=disruption.severity,
-                action=decision.action,
-                reason=decision.reason,
-                narrative=state.get("narrative") or "",
-                urgency=getattr(
-                    assessment,
-                    "urgency",
-                    "medium",
-                ) if assessment else "medium",
-                affected_shipment_ids=decision.affected_shipment_ids,
-                approved=True,
-                feedback=state.get("feedback"),
-            )
-
-            task = asyncio.create_task(self._archive.archive(record))
-            task.add_done_callback(_log_background_task_error)
-
-        await self._hub.publish({
-            "type": "plan.approved",
-            "data": {
-                "disruption_id": state.get("disruption_id"),
-                "action": decision.action.value,
-                "reason": decision.reason,
-            },
-        })
-
+        Durable decision archiving and notifications are intentionally owned by
+        ApprovalFinalizationService, which calls this node only after provider
+        persistence succeeds.
+        """
         return {
             "status": AgentStatus.APPROVED.value,
             "approved": True,
@@ -258,8 +215,7 @@ class AgentNodes:
                 feedback=state.get("feedback"),
             )
 
-            task = asyncio.create_task(self._archive.archive(record))
-            task.add_done_callback(_log_background_task_error)
+            await self._archive.archive(record)
 
         return {
             "status": AgentStatus.REJECTED.value,

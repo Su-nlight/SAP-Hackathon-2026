@@ -112,6 +112,10 @@ class SupplyAgent:
 
         if snapshot is None or not snapshot.values:
             raise ValueError(f"No agent state for thread {thread_id}")
+        if "approval" not in snapshot.next:
+            raise ValueError(
+                f"Agent thread {thread_id} is not awaiting approval"
+            )
 
         payload: Any = {
             "approved": approved,
@@ -139,3 +143,22 @@ class SupplyAgent:
             "awaiting_approval": bool(snapshot.next),
             "next_nodes": list(snapshot.next),
         }
+
+    def state(self, thread_id: str) -> dict[str, Any]:
+        """Return the persisted graph snapshot needed by finalization."""
+        config = {"configurable": {"thread_id": thread_id}}
+        snapshot = self.graph.get_state(config)
+        if snapshot is None or not snapshot.values:
+            raise ValueError(f"No agent state for thread {thread_id}")
+        return {
+            "values": dict(snapshot.values),
+            "next_nodes": list(snapshot.next),
+        }
+
+    def is_awaiting_approval(self, thread_id: str) -> bool:
+        snapshot = self.state(thread_id)
+        return (
+            snapshot["values"].get("status")
+            == AgentStatus.AWAITING_APPROVAL.value
+            and "approval" in snapshot["next_nodes"]
+        )
