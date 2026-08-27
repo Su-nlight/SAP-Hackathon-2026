@@ -1,26 +1,248 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* =========================================================
+   THEME TOKENS
+   Light theme  -> Rose Gold palette
+   Dark theme   -> Deep Blue / Plum palette
+   Applied via [data-theme="light"] / [data-theme="dark"] on <html>
+   ========================================================= */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* --- raw palette (light) --- */
+  --rose-gold: #bc7b6f;
+  --chocolate: #5a322a;
+  --peach: #e4a499;
+  --muted-blue: #718a9e;
+  --light-gray: #ccccdc;
+
+  /* --- semantic tokens --- */
+  --color-bg: #f6efec;
+  --color-bg-alt: #ede1dc;
+  --color-surface: #ffffff;
+  --color-text: var(--chocolate);
+  --color-text-muted: #8a6a61;
+  --color-primary: var(--rose-gold);
+  --color-primary-strong: var(--chocolate);
+  --color-secondary: var(--muted-blue);
+  --color-accent: var(--peach);
+  --color-border: #cccdc7;
+  --color-danger: #c0392b;
+  --color-success: #3a8c6e;
+  --color-warning: #b9822f;
+  --color-info: var(--muted-blue);
+
+  /* --- glass --- */
+  --glass-bg: rgba(255, 255, 255, 0.45);
+  --glass-bg-strong: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 8px 32px rgba(90, 50, 42, 0.18);
+  --glass-highlight: rgba(255, 255, 255, 0.8);
+
+  /* --- gradient backdrop --- */
+  --bg-gradient: radial-gradient(
+      circle at 15% 20%,
+      color-mix(in srgb, var(--peach) 55%, transparent) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 85% 15%,
+      color-mix(in srgb, var(--muted-blue) 45%, transparent) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 50% 90%,
+      color-mix(in srgb, var(--rose-gold) 40%, transparent) 0%,
+      transparent 55%
+    ),
+    #f6efec;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* --- raw palette (dark) --- */
+  --deep-blue: #213885;
+  --midnight-blue: #081849;
+  --soft-beige: #ecdfd2;
+  --light-gray-d: #ccccca;
+  --plum: #5f3475;
+  --magenta: #893172;
+
+  /* --- semantic tokens --- */
+  --color-bg: var(--midnight-blue);
+  --color-bg-alt: #0b2160;
+  --color-surface: #0e1f5c;
+  --color-text: var(--soft-beige);
+  --color-text-muted: #b9b4c9;
+  --color-primary: var(--deep-blue);
+  --color-primary-strong: #4257b3;
+  --color-secondary: var(--plum);
+  --color-accent: var(--magenta);
+  --color-border: rgba(204, 202, 204, 0.18);
+  --color-danger: #ff6b6b;
+  --color-success: #4ade80;
+  --color-warning: #e0a940;
+  --color-info: #6c8ee0;
+  /* --- glass --- */
+  --glass-bg: rgba(19, 30, 92, 0.45);
+  --glass-bg-strong: rgba(19, 30, 92, 0.65);
+  --glass-border: rgba(236, 223, 210, 0.14);
+  --glass-shadow: 0 8px 32px rgba(2, 6, 30, 0.55);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+
+  /* --- gradient backdrop --- */
+  --bg-gradient: radial-gradient(
+      circle at 15% 20%,
+      color-mix(in srgb, var(--plum) 55%, transparent) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 85% 15%,
+      color-mix(in srgb, var(--deep-blue) 55%, transparent) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 50% 90%,
+      color-mix(in srgb, var(--magenta) 45%, transparent) 0%,
+      transparent 55%
+    ),
+    var(--midnight-blue);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--color-border);
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--color-text);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+/* =========================================================
+   GLASSMORPHISM UTILITIES
+   ========================================================= */
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-card {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.5rem;
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+/* subtle top-edge highlight, a classic glassmorphism cue */
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--glass-highlight),
+    transparent
+  );
+}
+
+.glass-input {
+  background: color-mix(in srgb, var(--color-surface) 30%, transparent);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-text);
+}
+
+.glass-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.btn-primary {
+  background: linear-gradient(
+    120deg,
+    var(--color-primary),
+    var(--color-secondary)
+  );
+  color: #fff;
+  transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* floating gradient blobs used behind glass panels */
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: blob-float 14s ease-in-out infinite;
+}
+
+@keyframes blob-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(20px, -30px) scale(1.08);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-primary) 40%, transparent);
 }
