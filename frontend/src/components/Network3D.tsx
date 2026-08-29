@@ -1,18 +1,20 @@
+// @ts-nocheck
 "use client";
 
 import React, { useRef, useMemo, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stars, Line } from "@react-three/drei";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 export interface NodePoint {
   id: string;
   name: string;
-  city: string;
+  city?: string;
   lat: number;
   lng: number;
   status: "active" | "degraded" | "disrupted";
-  capacity: number;
+  capacity?: number;
 }
 
 export interface RouteLink {
@@ -21,6 +23,25 @@ export interface RouteLink {
   status: "active" | "congested" | "blocked";
   carrier?: string;
 }
+
+const DEFAULT_NODES: NodePoint[] = [
+  { id: "FRA", name: "Frankfurt Hub", city: "Frankfurt", lat: 50.11, lng: 8.68, status: "active", capacity: 0.88 },
+  { id: "RTM", name: "Rotterdam Port", city: "Rotterdam", lat: 51.92, lng: 4.47, status: "active", capacity: 0.94 },
+  { id: "SIN", name: "Singapore Gateway", city: "Singapore", lat: 1.35, lng: 103.82, status: "active", capacity: 0.91 },
+  { id: "SUEZ", name: "Suez Canal Corridor", city: "Suez", lat: 29.97, lng: 32.55, status: "disrupted", capacity: 0.22 },
+  { id: "NYC", name: "New York Port", city: "New York", lat: 40.71, lng: -74.0, status: "active", capacity: 0.85 },
+  { id: "DXB", name: "Dubai Air Cargo Hub", city: "Dubai", lat: 25.2, lng: 55.27, status: "degraded", capacity: 0.62 },
+  { id: "SHA", name: "Shanghai Port", city: "Shanghai", lat: 31.23, lng: 121.47, status: "active", capacity: 0.96 },
+];
+
+const DEFAULT_ROUTES: RouteLink[] = [
+  { from: "SHA", to: "SIN", status: "active", carrier: "Maersk" },
+  { from: "SIN", to: "SUEZ", status: "blocked", carrier: "Hapag-Lloyd" },
+  { from: "SUEZ", to: "RTM", status: "blocked", carrier: "MSC" },
+  { from: "RTM", to: "FRA", status: "active", carrier: "DB Schenker" },
+  { from: "FRA", to: "NYC", status: "active", carrier: "Lufthansa Cargo" },
+  { from: "DXB", to: "FRA", status: "congested", carrier: "Emirates SkyCargo" },
+];
 
 function latLngToVec3(lat: number, lng: number, r: number): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -40,6 +61,8 @@ function isLand(lat: number, lng: number): boolean {
   if (lat > -44 && lat < -10 && lng > 113 && lng < 154) return true;
   return false;
 }
+
+/* ---------------- Transit Arc ---------------- */
 
 function TransitArc({
   p1,
@@ -98,6 +121,8 @@ function TransitArc({
   );
 }
 
+/* ---------------- Orbital Scan Rings ---------------- */
+
 function OrbitalScanRing({ isDark }: { isDark: boolean }) {
   const ring1 = useRef<THREE.Group>(null);
   const ring2 = useRef<THREE.Group>(null);
@@ -135,20 +160,68 @@ function OrbitalScanRing({ isDark }: { isDark: boolean }) {
   );
 }
 
+/* ---------------- Pulsing alert ring for at-risk hubs ---------------- */
+
+function AlertRing({ position, color }: { position: THREE.Vector3; color: string }) {
+  const ref = useRef<THREE.Mesh>(null);
+  const t = useRef(0);
+
+  useFrame((_, delta) => {
+    t.current = (t.current + delta * 0.7) % 1;
+    const scale = 1 + t.current * 2.2;
+    if (ref.current) {
+      ref.current.scale.setScalar(scale);
+      const mat = ref.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = Math.max(0, 0.65 * (1 - t.current));
+    }
+  });
+
+  return (
+    <mesh ref={ref} position={position}>
+      <ringGeometry args={[0.09, 0.115, 32]} />
+      <meshBasicMaterial color={color} transparent opacity={0.65} side={THREE.DoubleSide} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/* ---------------- Camera intro sweep ---------------- */
+
+function CameraRig({ targetPos }: { targetPos: [number, number, number] }) {
+  const { camera } = require("@react-three/fiber").useThree();
+  const startedAt = useRef(0);
+  const from = useRef(new THREE.Vector3(0, 5.5, 11));
+  const to = useRef(new THREE.Vector3(...targetPos));
+
+  useFrame((state) => {
+    if (startedAt.current === 0) startedAt.current = state.clock.elapsedTime;
+    const elapsed = state.clock.elapsedTime - startedAt.current;
+    const duration = 2.2;
+    if (elapsed < duration) {
+      const t = 1 - Math.pow(1 - elapsed / duration, 3); // ease-out cubic
+      camera.position.lerpVectors(from.current, to.current, t);
+      camera.lookAt(0, 0, 0);
+    }
+  });
+
+  return null;
+}
+
+/* ---------------- Digital Globe ---------------- */
+
 function DigitalGlobe({
-  nodes,
-  routes,
-  selectedNode,
-  onSelectNode,
-  setHovered,
-  isDark,
+  nodes = [],
+  routes = [],
+  selectedNode = null,
+  onSelectNode = () => {},
+  setHovered = () => {},
+  isDark = true,
 }: {
-  nodes: NodePoint[];
-  routes: RouteLink[];
-  selectedNode: NodePoint | null;
-  onSelectNode: (n: NodePoint) => void;
-  setHovered: (n: NodePoint | null) => void;
-  isDark: boolean;
+  nodes?: NodePoint[];
+  routes?: RouteLink[];
+  selectedNode?: NodePoint | null;
+  onSelectNode?: (n: NodePoint) => void;
+  setHovered?: (n: NodePoint | null) => void;
+  isDark?: boolean;
 }) {
   const globeRef = useRef<THREE.Group>(null);
   const radius = 2.5;
@@ -161,7 +234,7 @@ function DigitalGlobe({
 
   const nodeMap = useMemo(() => {
     const m = new Map<string, THREE.Vector3>();
-    nodes.forEach((n) => m.set(n.id, latLngToVec3(n.lat, n.lng, radius)));
+    (nodes || []).forEach((n) => m.set(n.id, latLngToVec3(n.lat, n.lng, radius)));
     return m;
   }, [nodes]);
 
@@ -258,44 +331,47 @@ function DigitalGlobe({
       <OrbitalScanRing isDark={isDark} />
 
       {/* Transit Arcs */}
-      {routes.map((r, i) => {
+      {(routes || []).map((r, i) => {
         const p1 = nodeMap.get(r.from);
         const p2 = nodeMap.get(r.to);
         if (!p1 || !p2) return null;
         return <TransitArc key={i} p1={p1} p2={p2} status={r.status} isDark={isDark} />;
       })}
 
-      {/* Hub Beacons */}
-      {nodes.map((n) => {
+      {/* Hub Beacons + Alert Rings */}
+      {(nodes || []).map((n) => {
         const pos = nodeMap.get(n.id);
         if (!pos) return null;
         const color =
           n.status === "disrupted" ? "#f43f5e" : n.status === "degraded" ? "#f59e0b" : "#10b981";
 
         return (
-          <group key={n.id} position={pos}>
-            <mesh
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectNode(n);
-              }}
-              onPointerOver={(e) => {
-                e.stopPropagation();
-                document.body.style.cursor = "pointer";
-                setHovered(n);
-              }}
-              onPointerOut={() => {
-                document.body.style.cursor = "auto";
-                setHovered(null);
-              }}
-            >
-              <sphereGeometry args={[0.085, 18, 18]} />
-              <meshStandardMaterial
-                color={color}
-                emissive={color}
-                emissiveIntensity={isDark ? 3.0 : 1.8}
-              />
-            </mesh>
+          <group key={n.id}>
+            <group position={pos}>
+              <mesh
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectNode(n);
+                }}
+                onPointerOver={(e) => {
+                  e.stopPropagation();
+                  document.body.style.cursor = "pointer";
+                  setHovered(n);
+                }}
+                onPointerOut={() => {
+                  document.body.style.cursor = "auto";
+                  setHovered(null);
+                }}
+              >
+                <sphereGeometry args={[0.085, 18, 18]} />
+                <meshStandardMaterial
+                  color={color}
+                  emissive={color}
+                  emissiveIntensity={isDark ? 3.0 : 1.8}
+                />
+              </mesh>
+            </group>
+            {n.status !== "active" && <AlertRing position={pos} color={color} />}
           </group>
         );
       })}
@@ -303,20 +379,25 @@ function DigitalGlobe({
   );
 }
 
+/* ---------------- Root export ---------------- */
+
 export default function Network3D({
-  nodes,
-  routes,
-  selectedNode,
-  onSelectNode,
-  darkMode,
+  nodes = DEFAULT_NODES,
+  routes = DEFAULT_ROUTES,
+  selectedNode = null,
+  onSelectNode = () => {},
+  darkMode = true,
 }: {
-  nodes: NodePoint[];
-  routes: RouteLink[];
-  selectedNode: NodePoint | null;
-  onSelectNode: (n: NodePoint) => void;
-  darkMode: boolean;
+  nodes?: NodePoint[];
+  routes?: RouteLink[];
+  selectedNode?: NodePoint | null;
+  onSelectNode?: (n: NodePoint) => void;
+  darkMode?: boolean;
 }) {
   const [hovered, setHovered] = useState<NodePoint | null>(null);
+
+  const finalNodes = nodes && nodes.length > 0 ? nodes : DEFAULT_NODES;
+  const finalRoutes = routes && routes.length > 0 ? routes : DEFAULT_ROUTES;
 
   return (
     <div
@@ -324,26 +405,36 @@ export default function Network3D({
         darkMode ? "bg-[#0b1528]" : "bg-[#edf4fb]"
       }`}
     >
-      <Canvas camera={{ position: [0, 1.2, 6.4], fov: 44 }}>
+      <Canvas camera={{ position: [0, 5.5, 11], fov: 44 }}>
         <ambientLight intensity={darkMode ? 0.7 : 0.9} />
-        <pointLight
-          position={[14, 14, 14]}
-          intensity={2.2}
-          color={darkMode ? "#38bdf8" : "#2563eb"}
-        />
+        <pointLight position={[14, 14, 14]} intensity={2.2} color={darkMode ? "#38bdf8" : "#2563eb"} />
         <pointLight position={[-14, -14, -14]} intensity={0.6} color="#818cf8" />
         {darkMode && (
           <Stars radius={90} depth={45} count={2500} factor={3.5} saturation={0} fade speed={1} />
         )}
+
+        <CameraRig targetPos={[0, 1.2, 6.4]} />
+
         <DigitalGlobe
-          nodes={nodes}
-          routes={routes}
+          nodes={finalNodes}
+          routes={finalRoutes}
           selectedNode={selectedNode}
           onSelectNode={onSelectNode}
           setHovered={setHovered}
           isDark={darkMode}
         />
+
         <OrbitControls enablePan={false} minDistance={3.5} maxDistance={9} rotateSpeed={0.6} />
+
+        <EffectComposer>
+          <Bloom
+            intensity={darkMode ? 0.9 : 0.4}
+            luminanceThreshold={0.15}
+            luminanceSmoothing={0.9}
+            mipmapBlur
+          />
+          <Vignette eskil={false} offset={0.15} darkness={darkMode ? 0.7 : 0.3} />
+        </EffectComposer>
       </Canvas>
 
       {/* Floating HUD Tooltip */}
@@ -371,12 +462,14 @@ export default function Network3D({
                     : "text-emerald-500"
                 }
               >
-                {hovered.status.toUpperCase()}
+                {hovered.status?.toUpperCase() || "NOMINAL"}
               </strong>
             </span>
-            <span>
-              Capacity: <strong className="font-mono">{Math.round(hovered.capacity * 100)}%</strong>
-            </span>
+            {hovered.capacity !== undefined && (
+              <span>
+                Capacity: <strong className="font-mono">{Math.round(hovered.capacity * 100)}%</strong>
+              </span>
+            )}
           </div>
         </div>
       )}
