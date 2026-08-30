@@ -4,17 +4,12 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  Layers,
   AlertTriangle,
   RefreshCw,
   Send,
   ShieldCheck,
   Activity,
   Globe2,
-  Radio,
-  ChevronRight,
-  Sun,
-  Moon,
   Sparkles,
   Flame,
 } from "lucide-react";
@@ -74,10 +69,35 @@ const SHIPMENT_FEED = [
   { id: "PO-92411", origin: "Mumbai", dest: "Frankfurt", mat: "Active Medical APIs", carrier: "Emirates Cargo", status: "NOMINAL", delay: "0h" },
 ];
 
-export default function DashboardPage() {
-  const [role, setRole] = useState<Role>("Manager");
-  const [activeTab, setActiveTab] = useState("Dashboard");
-  const [darkMode, setDarkMode] = useState(true);
+const textMuted = { color: "var(--color-text-muted)" };
+const textMain = { color: "var(--color-text)" };
+const primary = { color: "var(--color-primary)" };
+
+function statusStyle(status: string) {
+  const s = status.toUpperCase();
+  if (s.includes("CRITICAL") || s === "BLOCKED" || s === "DISRUPTED") {
+    return {
+      color: "var(--color-danger)",
+      background: "color-mix(in srgb, var(--color-danger) 14%, transparent)",
+      borderColor: "color-mix(in srgb, var(--color-danger) 40%, transparent)",
+    };
+  }
+  if (s.includes("CONGESTED") || s === "DEGRADED") {
+    return {
+      color: "var(--color-warning)",
+      background: "color-mix(in srgb, var(--color-warning) 16%, transparent)",
+      borderColor: "color-mix(in srgb, var(--color-warning) 40%, transparent)",
+    };
+  }
+  return {
+    color: "var(--color-success)",
+    background: "color-mix(in srgb, var(--color-success) 14%, transparent)",
+    borderColor: "color-mix(in srgb, var(--color-success) 40%, transparent)",
+  };
+}
+
+export default function DashboardOverviewPage() {
+  const { isDark } = useTheme();
   const [nodes, setNodes] = useState<NodePoint[]>(INITIAL_NODES);
   const [routes, setRoutes] = useState<RouteLink[]>(INITIAL_ROUTES);
   const [selectedNode, setSelectedNode] = useState<NodePoint | null>(INITIAL_NODES[1]);

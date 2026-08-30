@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,6 +16,7 @@ class Settings(BaseSettings):
     app_name: str = "supplychain-heal"
     data_dir: Path = BASE_DIR / "data"
     event_log_path: Path = BASE_DIR / "data" / "event_log.jsonl"
+    data_provider: Literal["sap", "mock"] = "sap"
 
     # LLM defaults
     ai_enabled: bool = True
@@ -40,6 +42,7 @@ class Settings(BaseSettings):
     # --- auth ---
     jwt_secret: str = "this-is~ouur~very-secreet=for+jwt-auth"
     jwt_algorithm: str = "HS256"
+    default_dev_password: str = ""
     jwt_expire_minutes: int = 80
     auth_mode: str = "auto"
     mock_users_path: Path = BASE_DIR / "data" / "users.json"

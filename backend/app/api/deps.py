@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -21,8 +20,10 @@ from ..services.chat_service import DecisionChatService
 from ..services.decision_archive_service import DecisionArchiveService
 from ..services.disruption_service import DisruptionService
 from ..services.heal_engine import HealEngine
+from ..services.mock_disruption_provider import MockDisruptionProvider
 from ..services.network_service import NetworkService
 from ..services.routing_service import RoutingService
+from ..services.sap_disruption_provider import SapDisruptionProvider
 from ..services.scenario_service import ScenarioService
 from ..store.event_log import EventLog
 from ..store.network_store import NetworkStore
@@ -41,15 +42,28 @@ def _load_shipments() -> list[Shipment]:
     return [Shipment.model_validate(s) for s in raw]
 
 
-# ---- singletons ------------------------------------------------------
 store = NetworkStore(_load_seed_network())
 log = EventLog(settings.event_log_path)
-log.load()  # replay persisted events on startup
+log.load()
 hub = SinkHub()
 engine = NetworkXEngine()
 network_service = NetworkService(store, _load_shipments())
 routing_service = RoutingService(engine)
-disruption_service = DisruptionService(store, log, hub)
+
+sap_service = SapService()
+
+if settings.data_provider == "sap":
+    disruption_provider = SapDisruptionProvider(sap_service)
+else:
+    disruption_provider = MockDisruptionProvider(log)
+
+disruption_service = DisruptionService(
+    store,
+    log,
+    hub,
+    disruption_provider,
+)
+
 heal_engine = HealEngine(network_service, routing_service)
 scenario_service = ScenarioService(disruption_service)
 
@@ -65,15 +79,13 @@ agent_nodes = AgentNodes(
     hub,
     decision_archive_service,
 )
+
 agent = SupplyAgent(agent_nodes)
-sap_service = SapService()
 _auth_service = AuthService()
 
-# ---- Security Scheme -------------------------------------------------
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-# ---- FastAPI dependencies --------------------------------------------
 def get_llm_registry() -> LLMRegistry:
     return default_registry
 
@@ -127,6 +139,7 @@ def get_current_identity(
             detail="Missing authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     try:
         return decode_access_token(credentials.credentials)
     except JWTError:
@@ -142,15 +155,19 @@ def get_current_user(
     auth: AuthService = Depends(get_auth_service),
 ) -> User:
     username = identity.get("sub")
+
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
+
     u = auth.get_user(username)
+
     if not u:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+
     return u

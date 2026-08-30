@@ -35,6 +35,7 @@ class SapMaterialInfo:
     total_stock: Optional[float] = None
 
 
+
 @dataclass
 class SapDisruptionRow:
     """Row from ZHEAL_DISRUPTIONS (mirrored events)."""
@@ -43,14 +44,20 @@ class SapDisruptionRow:
     company_id: str = ""
     disrupt_type: str = ""
     target_type: str = "node"
-    target_node: str = ""
+    target_id: str = ""
     severity: str = "full"
-    status: str = "new"        # new | pending | approved | rejected | resolved
+    status: str = "new"
     start_ts: Optional[str] = None
     end_ts: Optional[str] = None
     created_at: Optional[str] = None
     created_by: str = ""
     approved_by: str = ""
+    impact_delay: float = 0.0
+    capacity_factor: float = 1.0
+    source: str = "manual"
+    raw_text: str = ""
+    resolved_at: Optional[str] = None
+    manual_review: bool = False
     payload_json: str = ""
 
 
@@ -105,3 +112,7 @@ class SapProvider(ABC):
     @abstractmethod
     def resolve_disruption(self, event_id: str) -> bool:
         """Resolve inside SAP (POST /sap/zheal/disruptions/resolve)."""
+
+    @abstractmethod
+    def delete_disruption(self, event_id: str) -> bool:
+        """Delete a disruption from SAP."""
