@@ -12,6 +12,11 @@ import {
   Globe2,
   Sparkles,
   Flame,
+  Sun,
+  Moon,
+  Layers,
+  ChevronRight,
+  Radio,
 } from "lucide-react";
 
 import type { NodePoint, RouteLink } from "@/components/Network3D";
@@ -21,9 +26,10 @@ import AdminView from "@/components/Roles/AdminView";
 
 const Network3D = dynamic(() => import("@/components/Network3D"), { ssr: false });
 const Logo3D = dynamic(() => import("@/components/logo"), { ssr: false });
-const ChaosSimulator = dynamic(() => import("@/components/ChaosSimulator").then((mod) => mod.default), {
-  ssr: false,
-});
+const ChaosSimulator = dynamic(
+  () => import("@/components/ChaosSimulator").then((mod) => mod.default),
+  { ssr: false }
+);
 
 type Role = "Manager" | "Operations" | "Customer" | "Admin";
 
@@ -69,35 +75,11 @@ const SHIPMENT_FEED = [
   { id: "PO-92411", origin: "Mumbai", dest: "Frankfurt", mat: "Active Medical APIs", carrier: "Emirates Cargo", status: "NOMINAL", delay: "0h" },
 ];
 
-const textMuted = { color: "var(--color-text-muted)" };
-const textMain = { color: "var(--color-text)" };
-const primary = { color: "var(--color-primary)" };
-
-function statusStyle(status: string) {
-  const s = status.toUpperCase();
-  if (s.includes("CRITICAL") || s === "BLOCKED" || s === "DISRUPTED") {
-    return {
-      color: "var(--color-danger)",
-      background: "color-mix(in srgb, var(--color-danger) 14%, transparent)",
-      borderColor: "color-mix(in srgb, var(--color-danger) 40%, transparent)",
-    };
-  }
-  if (s.includes("CONGESTED") || s === "DEGRADED") {
-    return {
-      color: "var(--color-warning)",
-      background: "color-mix(in srgb, var(--color-warning) 16%, transparent)",
-      borderColor: "color-mix(in srgb, var(--color-warning) 40%, transparent)",
-    };
-  }
-  return {
-    color: "var(--color-success)",
-    background: "color-mix(in srgb, var(--color-success) 14%, transparent)",
-    borderColor: "color-mix(in srgb, var(--color-success) 40%, transparent)",
-  };
-}
-
 export default function DashboardOverviewPage() {
-  const { isDark } = useTheme();
+  const [darkMode, setDarkMode] = useState(true);
+  const [role, setRole] = useState<Role>("Manager");
+  const [activeTab, setActiveTab] = useState("Dashboard");
+
   const [nodes, setNodes] = useState<NodePoint[]>(INITIAL_NODES);
   const [routes, setRoutes] = useState<RouteLink[]>(INITIAL_ROUTES);
   const [selectedNode, setSelectedNode] = useState<NodePoint | null>(INITIAL_NODES[1]);
@@ -114,22 +96,21 @@ export default function DashboardOverviewPage() {
   const getStatusBadge = (status: string) => {
     if (status.includes("CRITICAL")) {
       return darkMode
-        ? "bg-rose-950/70 text-rose-300 border-rose-800/60"
-        : "bg-rose-50 text-rose-700 border-rose-200 font-bold";
+        ? "bg-rose-950/60 text-rose-300 border-rose-800/60"
+        : "bg-rose-50 text-rose-700 border-rose-200 font-semibold";
     }
     if (status.includes("CONGESTED")) {
       return darkMode
-        ? "bg-amber-950/70 text-amber-300 border-amber-800/60"
-        : "bg-amber-50 text-amber-700 border-amber-200 font-bold";
+        ? "bg-amber-950/60 text-amber-300 border-amber-800/60"
+        : "bg-amber-50 text-amber-700 border-amber-200 font-semibold";
     }
     return darkMode
-      ? "bg-emerald-950/70 text-emerald-300 border-emerald-800/60"
-      : "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold";
+      ? "bg-emerald-950/60 text-emerald-300 border-emerald-800/60"
+      : "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold";
   };
 
   function handleInjectScenario(scn: any) {
     setIsChaosOpen(false);
-
     setNodes((prev) =>
       prev.map((n) => (n.id === scn.targetNodeId ? { ...n, status: "disrupted", capacity: 0.12 } : n))
     );
@@ -138,7 +119,6 @@ export default function DashboardOverviewPage() {
         r.from === scn.blockedRoute[0] && r.to === scn.blockedRoute[1] ? { ...r, status: "blocked" } : r
       )
     );
-
     const target = nodes.find((n) => n.id === scn.targetNodeId) || null;
     setSelectedNode(target);
 
@@ -178,16 +158,20 @@ export default function DashboardOverviewPage() {
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
-        { role: "agent", text: `🔍 RAG AUDIT PRECEDENT: Historical record confirms Force-Majeure Clause 14.1 applies to "${txt}". 100% liquidated damages waived.` },
+        {
+          role: "agent",
+          text: `🔍 RAG AUDIT PRECEDENT: Historical record confirms Force-Majeure Clause 14.1 applies to "${txt}". 100% liquidated damages waived.`,
+        },
       ]);
     }, 550);
   }
 
   return (
-    <div className={`h-screen w-screen flex overflow-hidden font-sans select-none transition-colors duration-300 ${
-      darkMode ? "bg-[#060c18] text-slate-100" : "bg-[#f4f7fb] text-slate-900"
-    }`}>
-      {/* Dynamic Chaos Modal */}
+    <div
+      className={`h-screen w-screen flex overflow-hidden font-sans select-none transition-colors duration-300 ${
+        darkMode ? "bg-[#060b14] text-slate-100" : "bg-[#f8fafc] text-slate-900"
+      }`}
+    >
       {isChaosOpen && (
         <ChaosSimulator
           darkMode={darkMode}
@@ -197,18 +181,24 @@ export default function DashboardOverviewPage() {
         />
       )}
 
-      {/* Sidebar Navigation */}
-      <aside className={`w-64 border-r flex flex-col shrink-0 backdrop-blur-2xl transition-colors duration-300 ${
-        darkMode ? "bg-[#0a1426]/90 border-slate-800/90" : "bg-white/90 border-slate-200 shadow-md"
-      }`}>
-        <div className={`p-4 border-b flex items-center justify-between ${darkMode ? "border-slate-800/80" : "border-slate-200"}`}>
+      {/* Unified Single Sidebar */}
+      <aside
+        className={`w-64 border-r flex flex-col shrink-0 backdrop-blur-2xl transition-colors duration-300 ${
+          darkMode ? "bg-slate-900/60 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
+        }`}
+      >
+        <div
+          className={`p-4 border-b flex items-center justify-between ${
+            darkMode ? "border-slate-800/80" : "border-slate-100"
+          }`}
+        >
           <div className="flex items-center gap-3">
             <Logo3D darkMode={darkMode} />
             <div>
-              <div className="text-xs font-black tracking-wider uppercase bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+              <div className="text-xs font-black tracking-wider uppercase bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent">
                 SELFHEAL NEXUS
               </div>
-              <div className={`text-[10px] font-mono font-bold ${darkMode ? "text-indigo-400" : "text-blue-600"}`}>
+              <div className={`text-[10px] font-mono font-bold ${darkMode ? "text-teal-400" : "text-teal-600"}`}>
                 3D DIGITAL TWIN
               </div>
             </div>
@@ -217,7 +207,9 @@ export default function DashboardOverviewPage() {
           <button
             onClick={() => setDarkMode(!darkMode)}
             className={`p-1.5 rounded-xl border transition shadow-sm ${
-              darkMode ? "bg-slate-900 border-slate-750 text-amber-400 hover:bg-slate-800" : "bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200"
+              darkMode
+                ? "bg-slate-800/80 border-slate-700 text-amber-400 hover:bg-slate-800"
+                : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
             }`}
             title="Toggle theme"
           >
@@ -226,12 +218,20 @@ export default function DashboardOverviewPage() {
         </div>
 
         {/* Role Switcher */}
-        <div className={`p-3.5 border-b ${darkMode ? "border-slate-800/80" : "border-slate-200"}`}>
-          <div className={`text-[10px] font-mono font-bold uppercase mb-2 flex justify-between ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+        <div className={`p-3.5 border-b ${darkMode ? "border-slate-800/80" : "border-slate-100"}`}>
+          <div
+            className={`text-[10px] font-mono font-bold uppercase mb-2 flex justify-between ${
+              darkMode ? "text-slate-400" : "text-slate-500"
+            }`}
+          >
             <span>PORTAL ROLE</span>
-            <span className="text-blue-500 font-bold">{role}</span>
+            <span className="text-teal-500 font-bold">{role}</span>
           </div>
-          <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-xl border ${darkMode ? "bg-[#040812] border-slate-800" : "bg-slate-100 border-slate-200"}`}>
+          <div
+            className={`grid grid-cols-2 gap-1.5 p-1 rounded-xl border ${
+              darkMode ? "bg-slate-950/60 border-slate-800" : "bg-slate-100/70 border-slate-200"
+            }`}
+          >
             {(["Manager", "Operations", "Customer", "Admin"] as Role[]).map((r) => (
               <button
                 key={r}
@@ -241,7 +241,7 @@ export default function DashboardOverviewPage() {
                 }}
                 className={`text-[11px] py-1.5 rounded-lg font-bold transition ${
                   role === r
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30"
+                    ? "bg-teal-600 text-white shadow-sm"
                     : darkMode
                     ? "text-slate-400 hover:text-slate-200"
                     : "text-slate-600 hover:text-slate-900"
@@ -253,22 +253,26 @@ export default function DashboardOverviewPage() {
           </div>
         </div>
 
-        {/* Nav Items */}
+        {/* Navigation Items */}
         <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
-          <div className={`text-[10px] font-mono font-bold uppercase px-2.5 py-1 ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+          <div
+            className={`text-[10px] font-mono font-bold uppercase px-2.5 py-1 ${
+              darkMode ? "text-slate-500" : "text-slate-400"
+            }`}
+          >
             {role} Modules
           </div>
           {ROLE_ITEMS[role].map((item) => (
             <button
               key={item}
               onClick={() => setActiveTab(item)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+              className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
                 activeTab === item
                   ? darkMode
-                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/40 shadow-sm"
-                    : "bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
+                    ? "bg-teal-950/40 text-teal-300 border border-teal-800/50"
+                    : "bg-teal-50 text-teal-700 border border-teal-200"
                   : darkMode
-                  ? "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                  ? "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
@@ -276,42 +280,49 @@ export default function DashboardOverviewPage() {
                 <Layers className="w-4 h-4" />
                 <span>{item}</span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-50" />
+              <ChevronRight className="w-3.5 h-3.5 opacity-40" />
             </button>
           ))}
         </nav>
 
-        {/* Tenant Meta */}
-        <div className={`p-3.5 border-t text-[11px] font-mono flex items-center justify-between ${
-          darkMode ? "border-slate-800/80 bg-[#040812]/60 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-600"
-        }`}>
+        {/* Footer Meta */}
+        <div
+          className={`p-3.5 border-t text-[11px] font-mono flex items-center justify-between ${
+            darkMode ? "border-slate-800/80 bg-slate-950/40 text-slate-400" : "border-slate-100 bg-slate-50 text-slate-600"
+          }`}
+        >
           <div>
-            <div className={`text-[9px] font-bold ${darkMode ? "text-slate-500" : "text-slate-400"}`}>ENTERPRISE TENANT</div>
+            <div className={`text-[9px] font-bold ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+              ENTERPRISE TENANT
+            </div>
             <div className={`font-bold ${darkMode ? "text-slate-200" : "text-slate-900"}`}>EU-WEST-PROD</div>
           </div>
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]"></span>
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
         </div>
       </aside>
 
-      {/* Main Workspace Area */}
-      <main className="flex-1 flex flex-col min-w-0 p-4 gap-4">
-        {/* Top Operational Bar */}
-        <header className={`h-14 border rounded-2xl px-6 flex items-center justify-between backdrop-blur-xl shrink-0 transition-colors duration-300 ${
-          darkMode ? "bg-[#0a1426]/70 border-slate-800/80" : "bg-white/80 border-slate-200 shadow-sm"
-        }`}>
+      {/* Main Workspace */}
+      <main className="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-hidden">
+        {/* Top Header */}
+        <header
+          className={`h-14 border rounded-2xl px-6 flex items-center justify-between backdrop-blur-xl shrink-0 transition-colors duration-300 ${
+            darkMode ? "bg-slate-900/60 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <span className={`text-xs font-mono font-bold uppercase ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{role}</span>
+            <span className={`text-xs font-mono font-bold uppercase ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+              {role}
+            </span>
             <span className="opacity-30 font-bold">/</span>
             <span className={`text-sm font-extrabold ${darkMode ? "text-white" : "text-slate-900"}`}>{activeTab}</span>
           </div>
 
           <div className="flex items-center gap-4 text-xs font-mono">
-            {/* Chaos Simulator Trigger Button */}
             <button
               onClick={() => setIsChaosOpen(true)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border ${
                 darkMode
-                  ? "bg-rose-950/40 text-rose-300 border-rose-800/60 hover:bg-rose-900/50"
+                  ? "bg-rose-950/30 text-rose-300 border-rose-800/50 hover:bg-rose-900/40"
                   : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
               }`}
             >
@@ -320,7 +331,7 @@ export default function DashboardOverviewPage() {
             </button>
 
             <div className="flex items-center gap-2">
-              <Globe2 className="w-4 h-4 text-blue-500" />
+              <Globe2 className="w-4 h-4 text-teal-500" />
               <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Nodes:</span>
               <strong className={darkMode ? "text-white" : "text-slate-900"}>10 Monitored</strong>
             </div>
@@ -329,16 +340,20 @@ export default function DashboardOverviewPage() {
               <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Flow Rate:</span>
               <strong className="text-emerald-500">94.2%</strong>
             </div>
-            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold ${
-              darkMode ? "text-emerald-400 bg-emerald-950/40 border-emerald-800/50" : "text-emerald-700 bg-emerald-50 border-emerald-300"
-            }`}>
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold ${
+                darkMode
+                  ? "text-emerald-400 bg-emerald-950/40 border-emerald-800/50"
+                  : "text-emerald-700 bg-emerald-50 border-emerald-300"
+              }`}
+            >
               <Radio className="w-3.5 h-3.5 animate-pulse" />
               HEURISTIC ENGINE ONLINE
             </div>
           </div>
         </header>
 
-        {/* Dynamic Role Views */}
+        {/* Dynamic Views */}
         {role === "Operations" ? (
           <OperationsView darkMode={darkMode} />
         ) : role === "Customer" ? (
@@ -346,13 +361,14 @@ export default function DashboardOverviewPage() {
         ) : role === "Admin" ? (
           <AdminView darkMode={darkMode} />
         ) : (
-          /* Default: Manager View (3D Twin + Disruption Table + RAG Intelligence) */
           <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
-            {/* 3D Visualizer & PO Ledger (Col 8) */}
+            {/* 3D Visualizer & Orders */}
             <div className="col-span-8 flex flex-col gap-4 h-full min-h-0">
-              <div className={`flex-1 relative min-h-0 rounded-2xl border backdrop-blur-xl overflow-hidden transition-colors duration-300 ${
-                darkMode ? "bg-[#0b1528] border-slate-800/90 shadow-2xl" : "bg-[#edf4fb] border-slate-200 shadow-md"
-              }`}>
+              <div
+                className={`flex-1 relative min-h-0 rounded-2xl border backdrop-blur-xl overflow-hidden shadow-xl transition-colors duration-300 ${
+                  darkMode ? "bg-[#070d18] border-slate-800/90" : "bg-slate-950 border-slate-200"
+                }`}
+              >
                 <Network3D
                   nodes={nodes}
                   routes={routes}
@@ -362,22 +378,32 @@ export default function DashboardOverviewPage() {
                 />
               </div>
 
-              <div className={`h-44 border rounded-2xl p-4 flex flex-col shrink-0 backdrop-blur-xl transition-colors duration-300 ${
-                darkMode ? "bg-[#0a1426]/85 border-slate-800/90 shadow-xl" : "bg-white border-slate-200 shadow-sm"
-              }`}>
-                <div className={`text-xs font-extrabold mb-2.5 flex items-center justify-between ${darkMode ? "text-white" : "text-slate-900"}`}>
+              <div
+                className={`h-44 border rounded-2xl p-4 flex flex-col shrink-0 backdrop-blur-xl transition-colors duration-300 ${
+                  darkMode ? "bg-slate-900/60 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
+                }`}
+              >
+                <div
+                  className={`text-xs font-extrabold mb-2.5 flex items-center justify-between ${
+                    darkMode ? "text-white" : "text-slate-900"
+                  }`}
+                >
                   <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-500" />
+                    <Sparkles className="w-4 h-4 text-teal-500" />
                     Active Monitored Purchase Orders
                   </span>
-                  <span className={`text-[10px] font-mono font-bold ${darkMode ? "text-indigo-400" : "text-blue-600"}`}>
+                  <span className={`text-[10px] font-mono font-bold ${darkMode ? "text-teal-400" : "text-teal-600"}`}>
                     S/4HANA ODATA FEED
                   </span>
                 </div>
                 <div className="flex-1 overflow-y-auto text-xs font-mono">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className={`text-[10px] font-bold border-b pb-2 ${darkMode ? "text-slate-400 border-slate-800" : "text-slate-500 border-slate-200"}`}>
+                      <tr
+                        className={`text-[10px] font-bold border-b pb-2 ${
+                          darkMode ? "text-slate-400 border-slate-800" : "text-slate-500 border-slate-100"
+                        }`}
+                      >
                         <th className="pb-2">PO ID</th>
                         <th className="pb-2">CORRIDOR</th>
                         <th className="pb-2">COMMODITY</th>
@@ -386,11 +412,17 @@ export default function DashboardOverviewPage() {
                         <th className="pb-2 text-right">IMPACT</th>
                       </tr>
                     </thead>
-                    <tbody className={`divide-y text-[11px] font-semibold ${darkMode ? "divide-slate-800/50" : "divide-slate-100"}`}>
+                    <tbody
+                      className={`divide-y text-[11px] font-semibold ${
+                        darkMode ? "divide-slate-800/50" : "divide-slate-100"
+                      }`}
+                    >
                       {SHIPMENT_FEED.map((s) => (
-                        <tr key={s.id} className={darkMode ? "hover:bg-slate-800/40" : "hover:bg-blue-50/50"}>
-                          <td className="py-2 text-blue-600 font-bold">{s.id}</td>
-                          <td className={`py-2 ${darkMode ? "text-slate-300" : "text-slate-700"}`}>{s.origin} → {s.dest}</td>
+                        <tr key={s.id} className={darkMode ? "hover:bg-slate-800/40" : "hover:bg-slate-50"}>
+                          <td className="py-2 text-teal-500 font-bold">{s.id}</td>
+                          <td className={`py-2 ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
+                            {s.origin} → {s.dest}
+                          </td>
                           <td className={`py-2 font-sans ${darkMode ? "text-slate-300" : "text-slate-600"}`}>{s.mat}</td>
                           <td className={`py-2 ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{s.carrier}</td>
                           <td className="py-2">
@@ -398,7 +430,13 @@ export default function DashboardOverviewPage() {
                               {s.status}
                             </span>
                           </td>
-                          <td className={`py-2 text-right font-bold ${s.delay !== "0h" ? "text-rose-600" : "text-emerald-600"}`}>{s.delay}</td>
+                          <td
+                            className={`py-2 text-right font-bold ${
+                              s.delay !== "0h" ? "text-rose-500" : "text-emerald-500"
+                            }`}
+                          >
+                            {s.delay}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -407,32 +445,48 @@ export default function DashboardOverviewPage() {
               </div>
             </div>
 
-            {/* Target Telemetry & Decision Archive (Col 4) */}
+            {/* Target Telemetry & Decision Archive */}
             <div className="col-span-4 flex flex-col gap-4 h-full min-h-0">
-              <div className={`border rounded-2xl p-4 flex flex-col gap-3.5 shrink-0 backdrop-blur-xl transition-colors duration-300 ${
-                darkMode ? "bg-[#0a1426]/85 border-slate-800/90 shadow-xl" : "bg-white border-slate-200 shadow-sm"
-              }`}>
+              <div
+                className={`border rounded-2xl p-4 flex flex-col gap-3.5 shrink-0 backdrop-blur-xl transition-colors duration-300 ${
+                  darkMode ? "bg-slate-900/60 border-slate-800/80 shadow-xl" : "bg-white border-slate-200 shadow-sm"
+                }`}
+              >
                 <div className="flex items-center justify-between">
-                  <div className={`text-xs font-extrabold flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-900"}`}>
+                  <div
+                    className={`text-xs font-extrabold flex items-center gap-2 ${
+                      darkMode ? "text-white" : "text-slate-900"
+                    }`}
+                  >
                     <AlertTriangle className="w-4 h-4 text-rose-500" />
                     Target Node Telemetry
                   </div>
-                  <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-md uppercase border ${getStatusBadge(selectedNode?.status === "disrupted" ? "CRITICAL" : "NOMINAL")}`}>
+                  <span
+                    className={`text-[10px] font-mono px-2.5 py-0.5 rounded-md uppercase border ${getStatusBadge(
+                      selectedNode?.status === "disrupted" ? "CRITICAL" : "NOMINAL"
+                    )}`}
+                  >
                     {selectedNode?.status || "STANDBY"}
                   </span>
                 </div>
 
                 {selectedNode && (
-                  <div className={`border p-3.5 rounded-xl text-xs space-y-2.5 font-mono ${
-                    darkMode ? "bg-[#040812] border-slate-800" : "bg-slate-50 border-slate-200"
-                  }`}>
+                  <div
+                    className={`border p-3.5 rounded-xl text-xs space-y-2.5 font-mono ${
+                      darkMode ? "bg-slate-950/60 border-slate-800" : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
                     <div className="flex justify-between">
                       <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Node Identifier:</span>
-                      <span className={`font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>{selectedNode.name}</span>
+                      <span className={`font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>
+                        {selectedNode.name}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Coordinates:</span>
-                      <span className="text-blue-600 font-bold">{selectedNode.lat.toFixed(2)}°N, {selectedNode.lng.toFixed(2)}°E</span>
+                      <span className="text-teal-500 font-bold">
+                        {selectedNode.lat.toFixed(2)}°N, {selectedNode.lng.toFixed(2)}°E
+                      </span>
                     </div>
                     <div className="flex justify-between items-center pt-1">
                       <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Throughput:</span>
@@ -445,7 +499,9 @@ export default function DashboardOverviewPage() {
                             style={{ width: `${selectedNode.capacity * 100}%` }}
                           ></div>
                         </div>
-                        <span className={`font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>{Math.round(selectedNode.capacity * 100)}%</span>
+                        <span className={`font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>
+                          {Math.round(selectedNode.capacity * 100)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -454,23 +510,33 @@ export default function DashboardOverviewPage() {
                 <button
                   onClick={handleHealAction}
                   disabled={isHealing || selectedNode?.status === "active"}
-                  className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:pointer-events-none text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-blue-600/30 active:scale-[0.98]"
+                  className="w-full py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-md active:scale-[0.98]"
                 >
                   <RefreshCw className={`w-4 h-4 ${isHealing ? "animate-spin" : ""}`} />
                   {isHealing ? "Calculating Optimal Reroute..." : "Execute Autonomous Healing Reroute"}
                 </button>
               </div>
 
-              <div className={`flex-1 border rounded-2xl p-4 flex flex-col min-h-0 backdrop-blur-xl transition-colors duration-300 ${
-                darkMode ? "bg-[#0a1426]/85 border-slate-800/90 shadow-xl" : "bg-white border-slate-200 shadow-sm"
-              }`}>
-                <div className={`text-xs font-extrabold mb-2.5 flex items-center justify-between uppercase ${darkMode ? "text-slate-300" : "text-slate-800"}`}>
-                  <span className="flex items-center gap-2 text-blue-600">
+              <div
+                className={`flex-1 border rounded-2xl p-4 flex flex-col min-h-0 backdrop-blur-xl transition-colors duration-300 ${
+                  darkMode ? "bg-slate-900/60 border-slate-800/80 shadow-xl" : "bg-white border-slate-200 shadow-sm"
+                }`}
+              >
+                <div
+                  className={`text-xs font-extrabold mb-2.5 flex items-center justify-between uppercase ${
+                    darkMode ? "text-slate-300" : "text-slate-800"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 text-teal-500">
                     <ShieldCheck className="w-4 h-4" /> Decision Archive Intelligence
                   </span>
-                  <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded border ${
-                    darkMode ? "text-emerald-400 bg-emerald-950/40 border-emerald-800/50" : "text-emerald-700 bg-emerald-50 border-emerald-200"
-                  }`}>
+                  <span
+                    className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded border ${
+                      darkMode
+                        ? "text-emerald-400 bg-emerald-950/40 border-emerald-800/50"
+                        : "text-emerald-700 bg-emerald-50 border-emerald-200"
+                    }`}
+                  >
                     RAG LIVE
                   </span>
                 </div>
@@ -482,10 +548,10 @@ export default function DashboardOverviewPage() {
                       className={`p-3 rounded-xl leading-relaxed ${
                         m.role === "user"
                           ? darkMode
-                            ? "bg-blue-600/20 text-blue-200 border border-blue-500/40 ml-auto max-w-[88%]"
-                            : "bg-blue-50 text-blue-900 border border-blue-200 ml-auto max-w-[88%]"
+                            ? "bg-teal-950/40 text-teal-200 border border-teal-800/50 ml-auto max-w-[88%]"
+                            : "bg-teal-50 text-teal-900 border border-teal-200 ml-auto max-w-[88%]"
                           : darkMode
-                          ? "bg-[#040812] text-slate-300 border border-slate-800 font-mono text-[11px]"
+                          ? "bg-slate-950/60 text-slate-300 border border-slate-800 font-mono text-[11px]"
                           : "bg-slate-50 text-slate-700 border border-slate-200 font-mono text-[11px]"
                       }`}
                     >
@@ -500,13 +566,15 @@ export default function DashboardOverviewPage() {
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="Query past resolutions, fallback SLA penalties..."
-                    className={`flex-1 border rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500 font-sans ${
-                      darkMode ? "bg-[#040812] border-slate-800 text-white placeholder-slate-500" : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400"
+                    className={`flex-1 border rounded-xl px-4 py-2.5 text-xs focus:outline-none font-sans ${
+                      darkMode
+                        ? "bg-slate-950/60 border-slate-800 text-white placeholder-slate-500 focus:border-teal-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-teal-500"
                     }`}
                   />
                   <button
                     type="submit"
-                    className="p-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl transition shadow-md shadow-blue-600/30"
+                    className="p-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl transition shadow-sm"
                   >
                     <Send className="w-4 h-4" />
                   </button>
