@@ -2,5 +2,7 @@
 *__pycache__*
 .env
 *.zip
-testing.py
-*node_modules*
+testing.py.next
+**/.next
+frontend/frontend
+node_modules

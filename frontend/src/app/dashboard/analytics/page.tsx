@@ -72,17 +72,17 @@ export default function AnalyticsPage() {
         description="Canned disruption playbooks — replay a scenario end-to-end via /v1/scenarios/run."
       />
 
-      {loading && <LoadingState label="Loading scenario library..." />}
+      {loading && <LoadingState label="Loading scenario library…" />}
       {error && <ErrorState message={error} />}
 
       {!loading && (
         <div className="p-4 grid grid-cols-12 gap-4">
           {/* Scenario library */}
-          <div className="col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3.5 content-start">
+          <div className="col-span-12 lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3.5 content-start">
             {scenarios.map((s) => (
               <div key={s.id} className="glass-card p-4 flex flex-col gap-2.5">
                 <div className="flex items-center gap-2 text-xs font-extrabold" style={textMain}>
-                  <BarChart3 className="w-4 h-4" style={primary} />
+                  <BarChart3 className="w-4 h-4" style={primary} aria-hidden="true" />
                   {s.name ?? s.id}
                 </div>
                 <p className="text-[11px] leading-relaxed flex-1" style={textMuted}>
@@ -90,7 +90,7 @@ export default function AnalyticsPage() {
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-mono flex items-center gap-1" style={textMuted}>
-                    <ListTree className="w-3 h-3" />
+                    <ListTree className="w-3 h-3" aria-hidden="true" />
                     {s.steps?.length ?? 0} step(s)
                   </span>
                   <button
@@ -99,11 +99,11 @@ export default function AnalyticsPage() {
                     className="btn-primary px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 disabled:opacity-50"
                   >
                     {runningId === s.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
                     ) : (
-                      <PlayCircle className="w-3.5 h-3.5" />
+                      <PlayCircle className="w-3.5 h-3.5" aria-hidden="true" />
                     )}
-                    {runningId === s.id ? "Running..." : "Run Scenario"}
+                    {runningId === s.id ? "Running…" : "Run Scenario"}
                   </button>
                 </div>
               </div>
@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Run log */}
-          <div className="col-span-4 glass-card p-4 flex flex-col min-h-0">
+          <div className="col-span-12 lg:col-span-4 glass-card p-4 flex flex-col min-h-0">
             <div className="text-xs font-extrabold mb-2.5" style={textMain}>Session Run Log</div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {runLog.map((entry, i) => (
@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
                   className="text-[11px] font-mono p-2.5 rounded-lg flex items-start gap-2"
                   style={{ background: "color-mix(in srgb, var(--color-bg-alt) 55%, transparent)" }}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--color-success)" }} />
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--color-success)" }} aria-hidden="true" />
                   <div>
                     <div className="font-bold" style={textMain}>{entry.scenarioName}</div>
                     <div style={textMuted}>{entry.injectedCount} event(s) injected · {entry.timestamp}</div>

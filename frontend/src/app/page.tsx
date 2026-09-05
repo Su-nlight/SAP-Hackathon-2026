@@ -1,141 +1,258 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight, ShieldCheck, Activity, Cpu } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { isAxiosError } from "axios";
+import { Lock, User, Eye, EyeOff, ArrowRight, Loader2, Mail, Building2 } from "lucide-react";
+import AuthShell from "@/components/AuthShell";
+import { login, register } from "@/app/lib/api";
 
-const FEATURES = [
-  {
-    icon: Activity,
-    title: "Live Disruption Radar",
-    desc: "Natural language alert parsing and automatic impact mapping.",
-  },
-  {
-    icon: Cpu,
-    title: "Deterministic Healing",
-    desc: "Algorithmic route generation with time and cost penalty balancing.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Grounded Decision RAG",
-    desc: "Isolated enterprise namespaces for verifiable decision auditing.",
-  },
-];
+type Mode = "signin" | "signup";
 
-export default function LandingPage() {
+const inputClass =
+  "w-full pl-9 pr-3 py-2.5 rounded-xl text-sm glass-input transition-all";
+const labelClass = "text-xs font-semibold mb-1.5 block";
+
+export default function SignInPage() {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("signin");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const labelStyle = { color: "var(--color-text-muted)" };
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      if (mode === "signin") {
+        await login({ username, password });
+      } else {
+        await register({ username, email, company_id: companyId, password });
+      }
+      router.push("/hub");
+    } catch (err) {
+      if (isAxiosError(err)) {
+        if (err.response?.status === 401) {
+          setError("Incorrect username or password.");
+        } else if (err.response?.status === 404 && mode === "signup") {
+          setError(
+            "Self-service account creation isn't available yet. Ask your SAP administrator for access."
+          );
+        } else {
+          setError(
+            (err.response?.data as { detail?: string } | undefined)?.detail ??
+              "Something went wrong. Please try again."
+          );
+        }
+      } else {
+        setError("Couldn't reach the server. Check your connection and try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <main className="relative min-h-screen w-full flex flex-col overflow-hidden">
-      {/* animated gradient blobs */}
+    <AuthShell
+      eyebrow="SelfHeal SC"
+      title={mode === "signin" ? "Sign In" : "Create Account"}
+      subtitle={
+        mode === "signin"
+          ? "Access your autonomous supply chain console."
+          : "Set up access for your organization."
+      }
+    >
       <div
-        className="blob w-96 h-96 -top-20 -left-20"
-        style={{ background: "var(--color-accent)" }}
-      />
-      <div
-        className="blob w-[28rem] h-[28rem] top-1/4 -right-24"
-        style={{ background: "var(--color-secondary)", animationDelay: "3s" }}
-      />
-      <div
-        className="blob w-72 h-72 bottom-0 left-1/3"
-        style={{ background: "var(--color-primary)", animationDelay: "6s" }}
-      />
-
-      <header className="relative z-10 px-6 sm:px-8 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center glass"
-            style={{ color: "var(--color-primary)" }}
-          >
-            <ShieldCheck className="w-4 h-4" />
-          </div>
-          <span
-            className="font-bold text-lg tracking-wide"
-            style={{ color: "var(--color-text)" }}
-          >
-            SelfHeal SC
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <Link
-            href="/login"
-            className="btn-primary text-sm font-semibold px-4 py-2 rounded-xl transition"
-          >
-            Sign In
-          </Link>
-        </div>
-      </header>
-
-      <section className="relative z-10 max-w-4xl mx-auto px-6 py-16 sm:py-24 text-center flex flex-col items-center flex-1">
-        <span
-          className="text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-6"
-          style={{
-            color: "var(--color-primary)",
-            background: "color-mix(in srgb, var(--color-primary) 15%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)",
-          }}
-        >
-          Autonomous Supply Chain Operations
-        </span>
-        <h1
-          className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight"
-          style={{ color: "var(--color-text)" }}
-        >
-          Self-Healing Logistics, Powered by AI
-        </h1>
-        <p
-          className="mt-6 text-lg max-w-2xl"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          Automate disruption detection, evaluate multi-modal rerouting
-          options deterministically, and query past operational decisions
-          with tenant-isolated RAG.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-4 justify-center">
-          <Link
-            href="/login"
-            className="btn-primary flex items-center gap-2 font-semibold px-6 py-3 rounded-xl transition"
-          >
-            Launch Console <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href="/register"
-            className="glass flex items-center gap-2 font-semibold px-6 py-3 rounded-xl transition hover:scale-[1.02]"
-            style={{ color: "var(--color-text)" }}
-          >
-            Create an Account
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-16 text-left w-full">
-          {FEATURES.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="glass-card p-5">
-              <Icon
-                className="w-6 h-6 mb-3"
-                style={{ color: "var(--color-primary)" }}
-              />
-              <h3
-                className="font-semibold"
-                style={{ color: "var(--color-text)" }}
-              >
-                {title}
-              </h3>
-              <p
-                className="text-sm mt-1"
-                style={{ color: "var(--color-text-muted)" }}
-              >
-                {desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <footer
-        className="relative z-10 py-6 text-center text-xs"
-        style={{ color: "var(--color-text-muted)" }}
+        className="grid grid-cols-2 gap-1.5 p-1 rounded-xl border mb-6"
+        style={{
+          background: "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)",
+          borderColor: "var(--color-border)",
+        }}
+        role="tablist"
+        aria-label="Authentication mode"
       >
-        Autonomous Self-Healing Supply Chain System
-      </footer>
-    </main>
+        {(["signin", "signup"] as Mode[]).map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={mode === m}
+            onClick={() => {
+              setMode(m);
+              setError(null);
+            }}
+            className="text-xs py-2 rounded-lg font-bold transition"
+            style={
+              mode === m
+                ? {
+                    background:
+                      "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                    color: "#fff",
+                  }
+                : labelStyle
+            }
+          >
+            {m === "signin" ? "Sign In" : "Create Account"}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <div>
+          <label htmlFor="username" className={labelClass} style={labelStyle}>
+            Username
+          </label>
+          <div className="relative">
+            <User
+              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
+              style={labelStyle}
+              aria-hidden="true"
+            />
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g. acme_admin"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        {mode === "signup" && (
+          <>
+            <div>
+              <label htmlFor="email" className={labelClass} style={labelStyle}>
+                Work Email
+              </label>
+              <div className="relative">
+                <Mail
+                  className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
+                  style={labelStyle}
+                  aria-hidden="true"
+                />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="companyId" className={labelClass} style={labelStyle}>
+                Company ID
+              </label>
+              <div className="relative">
+                <Building2
+                  className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
+                  style={labelStyle}
+                  aria-hidden="true"
+                />
+                <input
+                  id="companyId"
+                  name="companyId"
+                  type="text"
+                  autoComplete="organization"
+                  required
+                  value={companyId}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                  placeholder="e.g. acme"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        <div>
+          <label htmlFor="password" className={labelClass} style={labelStyle}>
+            Password
+          </label>
+          <div className="relative">
+            <Lock
+              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
+              style={labelStyle}
+              aria-hidden="true"
+            />
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              spellCheck={false}
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className={`${inputClass} pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              style={labelStyle}
+            >
+              {showPassword ? (
+                <EyeOff className="w-4 h-4" aria-hidden="true" />
+              ) : (
+                <Eye className="w-4 h-4" aria-hidden="true" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="text-xs font-medium px-3 py-2.5 rounded-xl"
+            style={{
+              color: "var(--color-danger)",
+              background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-2.5 rounded-xl btn-primary font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              {mode === "signin" ? "Signing in…" : "Creating account…"}
+            </>
+          ) : (
+            <>
+              {mode === "signin" ? "Sign In" : "Create Account"}
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </>
+          )}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
