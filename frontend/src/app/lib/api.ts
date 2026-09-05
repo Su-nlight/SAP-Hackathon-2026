@@ -24,6 +24,21 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface CurrentUser {
+  username: string;
+  company_id: string;
+  roles: string[];
+}
+
+/**
+ * Fetches the authenticated user's profile from GET /v1/auth/me,
+ * used to resolve which role(s) the signed-in user actually has.
+ */
+export async function getCurrentUser(): Promise<CurrentUser> {
+  const { data } = await api.get<CurrentUser>('/v1/auth/me');
+  return data;
+}
+
 export interface RegisterPayload {
   username: string;
   email: string;

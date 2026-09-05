@@ -106,7 +106,7 @@ export default function NetworkMapPage() {
         description="Live topology pulled from /v1/network/graph, rendered on the 3D digital twin."
       />
 
-      {loading && <LoadingState label="Loading network graph..." />}
+      {loading && <LoadingState label="Loading network graph…" />}
       {error && <ErrorState message={error} />}
 
       {!loading && !error && (
@@ -115,20 +115,20 @@ export default function NetworkMapPage() {
           {health && (
             <div className="px-4 pb-2 flex flex-wrap items-center gap-4 text-xs font-mono shrink-0">
               <div className="flex items-center gap-2">
-                <Globe2 className="w-4 h-4" style={primary} />
+                <Globe2 className="w-4 h-4" style={primary} aria-hidden="true" />
                 <span style={textMuted}>Nodes:</span>
                 <strong style={textMain}>{health.node_count}</strong>
               </div>
               <div className="flex items-center gap-2">
-                <Server className="w-4 h-4" style={primary} />
+                <Server className="w-4 h-4" style={primary} aria-hidden="true" />
                 <span style={textMuted}>Edges:</span>
                 <strong style={textMain}>{health.edge_count}</strong>
               </div>
               <div className="flex items-center gap-2">
                 {health.healthy ? (
-                  <ShieldCheck className="w-4 h-4" style={{ color: "var(--color-success)" }} />
+                  <ShieldCheck className="w-4 h-4" style={{ color: "var(--color-success)" }} aria-hidden="true" />
                 ) : (
-                  <WifiOff className="w-4 h-4" style={{ color: "var(--color-danger)" }} />
+                  <WifiOff className="w-4 h-4" style={{ color: "var(--color-danger)" }} aria-hidden="true" />
                 )}
                 <span style={textMuted}>Status:</span>
                 <strong style={{ color: health.healthy ? "var(--color-success)" : "var(--color-danger)" }}>
@@ -151,7 +151,7 @@ export default function NetworkMapPage() {
           <div className="flex-1 grid grid-cols-12 gap-4 p-4 min-h-0">
             {/* 3D Visualizer */}
             <div
-              className="col-span-8 relative min-h-0 rounded-2xl border glass overflow-hidden transition-colors duration-300"
+              className="col-span-12 lg:col-span-8 relative min-h-[320px] lg:min-h-0 rounded-2xl border glass overflow-hidden transition-colors duration-300"
               style={{ borderColor: "var(--color-border)" }}
             >
               <Network3D
@@ -164,7 +164,7 @@ export default function NetworkMapPage() {
             </div>
 
             {/* Node list */}
-            <div className="col-span-4 glass-card p-4 flex flex-col min-h-0">
+            <div className="col-span-12 lg:col-span-4 glass-card p-4 flex flex-col min-h-[260px] lg:min-h-0">
               <div className="text-xs font-extrabold mb-2.5" style={textMain}>
                 All Nodes ({nodes.length})
               </div>

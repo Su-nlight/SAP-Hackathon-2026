@@ -102,16 +102,19 @@ export default function AiRecoveryPage() {
 
       <div className="p-4 grid grid-cols-12 gap-4">
         {/* Shipment form */}
-        <form onSubmit={handleSubmit} className="col-span-4 glass-card p-4 flex flex-col gap-3.5 h-fit">
+        <form onSubmit={handleSubmit} className="col-span-12 lg:col-span-4 glass-card p-4 flex flex-col gap-3.5 h-fit">
           <div className="text-xs font-extrabold flex items-center gap-2" style={textMain}>
-            <Zap className="w-4 h-4" style={primary} />
+            <Zap className="w-4 h-4" style={primary} aria-hidden="true" />
             Shipment Parameters
           </div>
 
           <div>
-            <label className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Shipment ID</label>
+            <label htmlFor="shipment-id" className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Shipment ID</label>
             <input
+              id="shipment-id"
               type="text"
+              name="shipmentId"
+              autoComplete="off"
               value={shipmentId}
               onChange={(e) => setShipmentId(e.target.value)}
               className="glass-input w-full rounded-xl px-3 py-2 text-xs mt-1 font-mono"
@@ -120,8 +123,10 @@ export default function AiRecoveryPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Origin</label>
+              <label htmlFor="origin-select" className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Origin</label>
               <select
+                id="origin-select"
+                name="origin"
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value)}
                 disabled={nodesLoading}
@@ -133,8 +138,10 @@ export default function AiRecoveryPage() {
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Destination</label>
+              <label htmlFor="destination-select" className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Destination</label>
               <select
+                id="destination-select"
+                name="destination"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
                 disabled={nodesLoading}
@@ -149,9 +156,12 @@ export default function AiRecoveryPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Cargo (tons)</label>
+              <label htmlFor="cargo-tons" className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Cargo (tons)</label>
               <input
+                id="cargo-tons"
                 type="number"
+                name="cargoTons"
+                inputMode="decimal"
                 min={0.1}
                 step={0.1}
                 value={cargoTons}
@@ -160,9 +170,12 @@ export default function AiRecoveryPage() {
               />
             </div>
             <div>
-              <label className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Budget / ton</label>
+              <label htmlFor="budget-per-ton" className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Budget / ton</label>
               <input
+                id="budget-per-ton"
                 type="number"
+                name="budgetPerTon"
+                inputMode="decimal"
                 min={0}
                 step={1}
                 value={budgetPerTon}
@@ -173,9 +186,11 @@ export default function AiRecoveryPage() {
           </div>
 
           <div>
-            <label className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Deadline</label>
+            <label htmlFor="deadline-input" className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Deadline</label>
             <input
+              id="deadline-input"
               type="datetime-local"
+              name="deadline"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               className="glass-input w-full rounded-xl px-3 py-2 text-xs mt-1 font-mono"
@@ -183,13 +198,14 @@ export default function AiRecoveryPage() {
           </div>
 
           <div>
-            <label className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Priority</label>
-            <div className="grid grid-cols-4 gap-1.5 mt-1">
+            <span className="text-[10px] font-mono font-bold uppercase" style={textMuted}>Priority</span>
+            <div className="grid grid-cols-4 gap-1.5 mt-1" role="group" aria-label="Priority">
               {(["low", "standard", "high", "critical"] as Priority[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPriority(p)}
+                  aria-pressed={priority === p}
                   className="text-[10px] py-1.5 rounded-lg font-bold capitalize border transition"
                   style={
                     priority === p
@@ -208,21 +224,21 @@ export default function AiRecoveryPage() {
             disabled={submitting}
             className="btn-primary w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 mt-1"
           >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Route className="w-4 h-4" />}
-            {submitting ? "Computing alternatives..." : "Compute Reroute Alternatives"}
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Route className="w-4 h-4" aria-hidden="true" />}
+            {submitting ? "Computing alternatives…" : "Compute Reroute Alternatives"}
           </button>
 
           {error && <ErrorState message={error} />}
         </form>
 
         {/* Results */}
-        <div className="col-span-8 flex flex-col gap-3">
+        <div className="col-span-12 lg:col-span-8 flex flex-col gap-3">
           {activeDisruptions.length > 0 && (
             <div
               className="glass-card p-3 flex items-center gap-2 text-xs font-mono"
               style={{ color: "var(--color-warning)" }}
             >
-              <ShieldAlert className="w-4 h-4 shrink-0" />
+              <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
               Computed against {activeDisruptions.length} active disruption(s): {activeDisruptions.join(", ")}
             </div>
           )}
@@ -272,19 +288,19 @@ export default function AiRecoveryPage() {
 
               <div className="grid grid-cols-4 gap-3 text-xs">
                 <div>
-                  <div className="flex items-center gap-1.5" style={textMuted}><Clock className="w-3.5 h-3.5" /> Time</div>
+                  <div className="flex items-center gap-1.5" style={textMuted}><Clock className="w-3.5 h-3.5" aria-hidden="true" /> Time</div>
                   <div className="font-bold mt-0.5" style={textMain}>{alt.total_time_hours.toFixed(1)}h</div>
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5" style={textMuted}><DollarSign className="w-3.5 h-3.5" /> Cost/ton</div>
+                  <div className="flex items-center gap-1.5" style={textMuted}><DollarSign className="w-3.5 h-3.5" aria-hidden="true" /> Cost/ton</div>
                   <div className="font-bold mt-0.5" style={textMain}>${alt.total_cost_per_ton.toFixed(0)}</div>
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5" style={textMuted}><ShieldAlert className="w-3.5 h-3.5" /> Risk</div>
+                  <div className="flex items-center gap-1.5" style={textMuted}><ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" /> Risk</div>
                   <div className="font-bold mt-0.5" style={textMain}>{(alt.total_risk * 100).toFixed(0)}%</div>
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5" style={textMuted}><Leaf className="w-3.5 h-3.5" /> CO₂/ton</div>
+                  <div className="flex items-center gap-1.5" style={textMuted}><Leaf className="w-3.5 h-3.5" aria-hidden="true" /> CO₂/ton</div>
                   <div className="font-bold mt-0.5" style={textMain}>{alt.total_co2_per_ton.toFixed(1)}kg</div>
                 </div>
               </div>

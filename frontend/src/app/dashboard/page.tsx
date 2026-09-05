@@ -1,8 +1,8 @@
-// @ts-nocheck
 "use client";
 
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   RefreshCw,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import type { NodePoint, RouteLink } from "@/components/Network3D";
+import type { ChaosScenario } from "@/components/ChaosSimulator";
 import OperationsView from "@/components/Roles/OperationsView";
 import CustomerView from "@/components/Roles/CustomerView";
 import AdminView from "@/components/Roles/AdminView";
@@ -88,9 +89,13 @@ function statusBadgeStyle(status: string) {
   };
 }
 
-export default function DashboardOverviewPage({ searchParams }: { searchParams?: { role?: string } }) {
+const VALID_ROLES = ["Manager", "Operations", "Customer", "Admin"];
+
+export default function DashboardOverviewPage() {
   const { isDark } = useTheme();
-  const role = searchParams?.role || "Manager";
+  const searchParams = useSearchParams();
+  const roleParam = searchParams.get("role");
+  const role = VALID_ROLES.includes(roleParam || "") ? (roleParam as string) : "Manager";
 
   const [nodes, setNodes] = useState<NodePoint[]>(INITIAL_NODES);
   const [routes, setRoutes] = useState<RouteLink[]>(INITIAL_ROUTES);
@@ -105,7 +110,7 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
     },
   ]);
 
-  function handleInjectScenario(scn: any) {
+  function handleInjectScenario(scn: ChaosScenario) {
     setIsChaosOpen(false);
     setNodes((prev) => prev.map((n) => (n.id === scn.targetNodeId ? { ...n, status: "disrupted", capacity: 0.12 } : n)));
     setRoutes((prev) =>
@@ -148,9 +153,9 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
     }, 550);
   }
 
-  if (role === "Operations") return <OperationsView darkMode={isDark} />;
-  if (role === "Customer") return <CustomerView darkMode={isDark} />;
-  if (role === "Admin") return <AdminView darkMode={isDark} />;
+  if (role === "Operations") return <OperationsView />;
+  if (role === "Customer") return <CustomerView />;
+  if (role === "Admin") return <AdminView />;
 
   return (
     <div className="flex-1 flex flex-col h-full w-full min-h-0 gap-4">
@@ -184,17 +189,17 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
               borderColor: "color-mix(in srgb, var(--color-danger) 35%, transparent)",
             }}
           >
-            <Flame className="w-3.5 h-3.5 animate-pulse" />
+            <Flame className="w-3.5 h-3.5 animate-pulse" aria-hidden="true" />
             <span>CHAOS SIMULATOR</span>
           </button>
 
           <div className="flex items-center gap-1.5" style={textMuted}>
-            <Globe2 className="w-4 h-4" style={primary} />
+            <Globe2 className="w-4 h-4" style={primary} aria-hidden="true" />
             <span>Nodes:</span>
             <strong style={textMain}>10 Monitored</strong>
           </div>
           <div className="flex items-center gap-1.5" style={textMuted}>
-            <Activity className="w-4 h-4" style={{ color: "var(--color-success)" }} />
+            <Activity className="w-4 h-4" style={{ color: "var(--color-success)" }} aria-hidden="true" />
             <span>Flow:</span>
             <strong style={{ color: "var(--color-success)" }}>94.2%</strong>
           </div>
@@ -204,7 +209,7 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
       {/* Grid Workspace */}
       <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
         {/* Left Column: 3D Twin & Orders */}
-        <div className="col-span-8 flex flex-col gap-4 h-full min-h-0">
+        <div className="col-span-12 lg:col-span-8 flex flex-col gap-4 h-full min-h-0">
           <div
             className="flex-1 relative min-h-[300px] rounded-2xl border glass-strong shadow-xl overflow-hidden"
             style={{ borderColor: "var(--color-border)" }}
@@ -270,7 +275,7 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
         </div>
 
         {/* Right Column: Telemetry & Decision Archive */}
-        <div className="col-span-4 flex flex-col gap-4 h-full min-h-0">
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-4 h-full min-h-0">
           <div
             className="glass border rounded-2xl p-4 flex flex-col gap-3.5 shrink-0"
             style={{ borderColor: "var(--color-border)" }}
@@ -305,12 +310,12 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
                       <div
                         className="h-full transition-all duration-500"
                         style={{
-                          width: `${selectedNode.capacity * 100}%`,
-                          background: selectedNode.capacity < 0.4 ? "var(--color-danger)" : "var(--color-success)",
+                          width: `${(selectedNode.capacity ?? 0) * 100}%`,
+                          background: (selectedNode.capacity ?? 0) < 0.4 ? "var(--color-danger)" : "var(--color-success)",
                         }}
                       />
                     </div>
-                    <span className="font-bold" style={textMain}>{Math.round(selectedNode.capacity * 100)}%</span>
+                    <span className="font-bold" style={textMain}>{Math.round((selectedNode.capacity ?? 0) * 100)}%</span>
                   </div>
                 </div>
               </div>
@@ -325,8 +330,8 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
                 boxShadow: "0 4px 14px color-mix(in srgb, var(--color-primary) 30%, transparent)",
               }}
             >
-              <RefreshCw className={`w-4 h-4 ${isHealing ? "animate-spin" : ""}`} />
-              {isHealing ? "Calculating Optimal Reroute..." : "Execute Autonomous Healing Reroute"}
+              <RefreshCw className={`w-4 h-4 ${isHealing ? "animate-spin" : ""}`} aria-hidden="true" />
+              {isHealing ? "Calculating Optimal Reroute…" : "Execute Autonomous Healing Reroute"}
             </button>
           </div>
 
@@ -336,7 +341,7 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
           >
             <div className="text-xs font-extrabold mb-2.5 flex items-center justify-between uppercase">
               <span className="flex items-center gap-2" style={primary}>
-                <ShieldCheck className="w-4 h-4" /> Decision Archive Intelligence
+                <ShieldCheck className="w-4 h-4" aria-hidden="true" /> Decision Archive Intelligence
               </span>
               <span
                 className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded border"
@@ -379,11 +384,17 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
             </div>
 
             <form onSubmit={handleSendQuery} className="mt-3 flex gap-2">
+              <label htmlFor="decision-query" className="sr-only">
+                Query past resolutions
+              </label>
               <input
+                id="decision-query"
                 type="text"
+                name="decisionQuery"
+                autoComplete="off"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Query past resolutions, fallback SLA penalties..."
+                placeholder="Query past resolutions, fallback SLA penalties…"
                 className="flex-1 border rounded-xl px-4 py-2.5 text-xs focus:outline-none font-sans"
                 style={{
                   background: "color-mix(in srgb, var(--color-bg-alt) 50%, transparent)",
@@ -393,10 +404,11 @@ export default function DashboardOverviewPage({ searchParams }: { searchParams?:
               />
               <button
                 type="submit"
+                aria-label="Send query"
                 className="p-2.5 text-white rounded-xl transition"
                 style={{ background: "linear-gradient(90deg, var(--color-primary), var(--color-secondary))" }}
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-4 h-4" aria-hidden="true" />
               </button>
             </form>
           </div>

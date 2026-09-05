@@ -160,8 +160,14 @@ export default function DisruptionsPage() {
             Ingest Raw Alert (Natural Language)
           </div>
           <div className="flex gap-2">
+            <label htmlFor="raw-alert-input" className="sr-only">
+              Raw alert text
+            </label>
             <input
+              id="raw-alert-input"
               type="text"
+              name="rawAlert"
+              autoComplete="off"
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
               placeholder='e.g. "Suez canal blocked by grounded vessel, full closure"'
@@ -173,7 +179,7 @@ export default function DisruptionsPage() {
               className="btn-primary px-4 rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
-              {ingesting ? "Parsing..." : "Ingest"}
+              {ingesting ? "Parsing…" : "Ingest"}
             </button>
           </div>
           {ingestResult && (
@@ -190,7 +196,7 @@ export default function DisruptionsPage() {
             Event Log
           </div>
 
-          {loading && <LoadingState label="Loading disruptions..." />}
+          {loading && <LoadingState label="Loading disruptions…" />}
           {error && <ErrorState message={error} />}
 
           {!loading && !error && (
@@ -226,19 +232,21 @@ export default function DisruptionsPage() {
                             onClick={() => handleApprove(ev.id)}
                             disabled={actionBusyId === ev.id || ev.status === "resolved"}
                             title="Approve recommended action"
+                            aria-label={`Approve recommended action for ${ev.id}`}
                             className="p-1.5 rounded-lg border disabled:opacity-30"
                             style={{ borderColor: "var(--color-border)", color: "var(--color-success)" }}
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                           </button>
                           <button
                             onClick={() => handleResolve(ev.id)}
                             disabled={actionBusyId === ev.id || ev.status === "resolved"}
                             title="Mark resolved"
+                            aria-label={`Mark ${ev.id} resolved`}
                             className="p-1.5 rounded-lg border disabled:opacity-30"
                             style={{ borderColor: "var(--color-border)", ...primary }}
                           >
-                            <RotateCcw className="w-3.5 h-3.5" />
+                            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                           </button>
                         </div>
                       </td>

@@ -1,11 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Truck, AlertTriangle, ArrowRightLeft, CheckCircle2, Clock, MapPin, Gauge } from "lucide-react";
-
-interface OperationsProps {
-  darkMode: boolean;
-}
+import { Truck, AlertTriangle, ArrowRightLeft, Gauge } from "lucide-react";
 
 const LIVE_DISPATCHES = [
   { id: "DISP-101", carrier: "DB Schenker", origin: "FRA Terminal", dest: "RTM Seaport", mode: "Rail", status: "Rerouted", speed: "78 km/h", eta: "2h 15m" },
@@ -14,45 +10,67 @@ const LIVE_DISPATCHES = [
   { id: "DISP-104", carrier: "Emirates SkyCargo", origin: "DXB Logistics", dest: "FRA Hub", mode: "Air", status: "On Schedule", speed: "810 km/h", eta: "3h 20m" },
 ];
 
-export default function OperationsView({ darkMode }: OperationsProps) {
-  const [selectedRoute, setSelectedRoute] = useState(LIVE_DISPATCHES[0]);
+const CORRIDORS = [
+  { label: "FRA → RTM RAIL SPINE", value: "94% Nominal", note: "0.8h delay risk", tone: "success" as const },
+  { label: "RTM SEAPORT BERTH", value: "15% Congested", note: "Crane strike active", tone: "danger" as const },
+  { label: "SIN → PVG OCEAN WAY", value: "62% Moderate", note: "Port waiting: +6h", tone: "warning" as const },
+];
 
-  const getStatusBadge = (status: string) => {
-    if (status.includes("Delayed")) {
-      return darkMode
-        ? "bg-amber-950/60 text-amber-300 border-amber-800/60"
-        : "bg-amber-50 text-amber-800 border-amber-200 font-bold";
-    }
-    if (status.includes("Rerouted")) {
-      return darkMode
-        ? "bg-blue-950/60 text-blue-300 border-blue-800/60"
-        : "bg-blue-50 text-blue-700 border-blue-200 font-bold";
-    }
-    return darkMode
-      ? "bg-emerald-950/60 text-emerald-300 border-emerald-800/60"
-      : "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold";
+const textMuted = { color: "var(--color-text-muted)" };
+const textMain = { color: "var(--color-text)" };
+
+function statusStyle(status: string) {
+  if (status.includes("Delayed")) {
+    return {
+      color: "var(--color-warning)",
+      background: "color-mix(in srgb, var(--color-warning) 14%, transparent)",
+      borderColor: "color-mix(in srgb, var(--color-warning) 35%, transparent)",
+    };
+  }
+  if (status.includes("Rerouted")) {
+    return {
+      color: "var(--color-primary)",
+      background: "color-mix(in srgb, var(--color-primary) 14%, transparent)",
+      borderColor: "color-mix(in srgb, var(--color-primary) 35%, transparent)",
+    };
+  }
+  return {
+    color: "var(--color-success)",
+    background: "color-mix(in srgb, var(--color-success) 12%, transparent)",
+    borderColor: "color-mix(in srgb, var(--color-success) 35%, transparent)",
   };
+}
+
+function toneColor(tone: "success" | "danger" | "warning") {
+  return `var(--color-${tone})`;
+}
+
+export default function OperationsView() {
+  const [selectedRoute, setSelectedRoute] = useState(LIVE_DISPATCHES[0]);
 
   return (
     <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
-      {/* Route Management & Live Telemetry (Col 8) */}
-      <div className="col-span-8 flex flex-col gap-4 min-h-0">
-        <div className={`flex-1 border rounded-2xl p-5 flex flex-col backdrop-blur-xl ${
-          darkMode ? "bg-[#0a1426]/85 border-slate-800/90 shadow-xl" : "bg-white border-slate-200 shadow-sm"
-        }`}>
-          <div className="flex items-center justify-between mb-4">
+      {/* Route Management & Live Telemetry */}
+      <div className="col-span-12 lg:col-span-8 flex flex-col gap-4 min-h-0">
+        <div className="flex-1 glass-card p-5 flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <div>
-              <div className={`text-sm font-extrabold flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-900"}`}>
-                <Truck className="w-4 h-4 text-blue-600" />
+              <div className="text-sm font-extrabold flex items-center gap-2" style={textMain}>
+                <Truck className="w-4 h-4" style={{ color: "var(--color-primary)" }} aria-hidden="true" />
                 Live Fleet & Carrier Dispatch Control
               </div>
-              <div className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+              <div className="text-xs" style={textMuted}>
                 Real-time active freight monitoring across multi-modal lanes
               </div>
             </div>
-            <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full border ${
-              darkMode ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-700 border-emerald-200"
-            }`}>
+            <span
+              className="text-xs font-mono font-bold px-3 py-1 rounded-full border"
+              style={{
+                color: "var(--color-success)",
+                background: "color-mix(in srgb, var(--color-success) 12%, transparent)",
+                borderColor: "color-mix(in srgb, var(--color-success) 35%, transparent)",
+              }}
+            >
               4 ACTIVE CARRIERS
             </span>
           </div>
@@ -60,7 +78,7 @@ export default function OperationsView({ darkMode }: OperationsProps) {
           <div className="flex-1 overflow-y-auto font-mono text-xs">
             <table className="w-full text-left">
               <thead>
-                <tr className={`border-b pb-2 text-[10px] font-bold ${darkMode ? "text-slate-400 border-slate-800" : "text-slate-500 border-slate-200"}`}>
+                <tr className="border-b pb-2 text-[10px] font-bold" style={{ ...textMuted, borderColor: "var(--color-border)" }}>
                   <th className="pb-2">DISPATCH ID</th>
                   <th className="pb-2">CARRIER</th>
                   <th className="pb-2">CORRIDOR</th>
@@ -70,130 +88,154 @@ export default function OperationsView({ darkMode }: OperationsProps) {
                   <th className="pb-2 text-right">ETA</th>
                 </tr>
               </thead>
-              <tbody className={`divide-y text-[11px] ${darkMode ? "divide-slate-800/60" : "divide-slate-100"}`}>
-                {LIVE_DISPATCHES.map((d) => (
-                  <tr
-                    key={d.id}
-                    onClick={() => setSelectedRoute(d)}
-                    className={`cursor-pointer transition ${
-                      selectedRoute.id === d.id
-                        ? darkMode ? "bg-blue-600/20 text-white" : "bg-blue-50/80 text-slate-900 font-semibold"
-                        : darkMode ? "hover:bg-slate-800/40 text-slate-300" : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <td className="py-3 font-bold text-blue-600">{d.id}</td>
-                    <td className="py-3 font-sans font-semibold">{d.carrier}</td>
-                    <td className="py-3">{d.origin} → {d.dest}</td>
-                    <td className="py-3">{d.mode}</td>
-                    <td className="py-3">{d.speed}</td>
-                    <td className="py-3">
-                      <span className={`px-2.5 py-1 rounded-md text-[10px] border tracking-tight ${getStatusBadge(d.status)}`}>
-                        {d.status}
-                      </span>
-                    </td>
-                    <td className={`py-3 text-right font-bold ${darkMode ? "text-slate-200" : "text-slate-900"}`}>{d.eta}</td>
-                  </tr>
-                ))}
+              <tbody className="divide-y text-[11px]" style={{ borderColor: "var(--color-border)" }}>
+                {LIVE_DISPATCHES.map((d) => {
+                  const isSelected = selectedRoute.id === d.id;
+                  return (
+                    <tr
+                      key={d.id}
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={isSelected}
+                      aria-label={`Select dispatch ${d.id}, ${d.carrier}, ${d.origin} to ${d.dest}`}
+                      onClick={() => setSelectedRoute(d)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedRoute(d);
+                        }
+                      }}
+                      className="cursor-pointer transition focus-visible:outline-none focus-visible:ring-2"
+                      style={{
+                        ...(isSelected
+                          ? { background: "color-mix(in srgb, var(--color-primary) 14%, transparent)", ...textMain, fontWeight: 600 }
+                          : textMuted),
+                        ["--tw-ring-color" as string]: "var(--color-primary)",
+                      }}
+                    >
+                      <td className="py-3 font-bold" style={{ color: "var(--color-primary)" }}>{d.id}</td>
+                      <td className="py-3 font-sans font-semibold" style={textMain}>{d.carrier}</td>
+                      <td className="py-3">{d.origin} → {d.dest}</td>
+                      <td className="py-3">{d.mode}</td>
+                      <td className="py-3">{d.speed}</td>
+                      <td className="py-3">
+                        <span
+                          className="px-2.5 py-1 rounded-md text-[10px] border tracking-tight"
+                          style={statusStyle(d.status)}
+                        >
+                          {d.status}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right font-bold" style={textMain}>{d.eta}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
 
         {/* Lane Health Matrix */}
-        <div className={`h-40 border rounded-2xl p-4 flex flex-col backdrop-blur-xl ${
-          darkMode ? "bg-[#0a1426]/85 border-slate-800/90 shadow-xl" : "bg-white border-slate-200 shadow-sm"
-        }`}>
-          <div className="text-xs font-bold mb-3 flex items-center justify-between">
-            <span className={`flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-900"}`}>
-              <Gauge className="w-4 h-4 text-emerald-600" />
+        <div className="glass-card p-4 flex flex-col">
+          <div className="text-xs font-bold mb-3 flex items-center justify-between flex-wrap gap-2">
+            <span className="flex items-center gap-2" style={textMain}>
+              <Gauge className="w-4 h-4" style={{ color: "var(--color-success)" }} aria-hidden="true" />
               Corridor Capacity & Congestion Indices
             </span>
-            <span className="text-[10px] font-mono text-slate-400">UPDATED REAL-TIME</span>
+            <span className="text-[10px] font-mono" style={textMuted}>UPDATED REAL-TIME</span>
           </div>
-          <div className="grid grid-cols-3 gap-3 flex-1 font-mono text-xs">
-            <div className={`p-3 rounded-xl border flex flex-col justify-between ${darkMode ? "bg-[#040812] border-slate-800" : "bg-slate-50 border-slate-200"}`}>
-              <div className="text-[10px] text-slate-500 font-semibold">FRA → RTM RAIL SPINE</div>
-              <div className="text-emerald-600 font-bold text-base">94% Nominal</div>
-              <div className="text-[10px] text-slate-400">Latency: 0.8h delay risk</div>
-            </div>
-            <div className={`p-3 rounded-xl border flex flex-col justify-between ${darkMode ? "bg-[#040812] border-slate-800" : "bg-slate-50 border-slate-200"}`}>
-              <div className="text-[10px] text-slate-500 font-semibold">RTM SEAPORT BERTH</div>
-              <div className="text-rose-600 font-bold text-base">15% Congested</div>
-              <div className="text-[10px] text-slate-400">Crane Strike Active</div>
-            </div>
-            <div className={`p-3 rounded-xl border flex flex-col justify-between ${darkMode ? "bg-[#040812] border-slate-800" : "bg-slate-50 border-slate-200"}`}>
-              <div className="text-[10px] text-slate-500 font-semibold">SIN → PVG OCEAN WAY</div>
-              <div className="text-amber-600 font-bold text-base">62% Moderate</div>
-              <div className="text-[10px] text-slate-400">Port Waiting: +6h</div>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
+            {CORRIDORS.map((c) => (
+              <div
+                key={c.label}
+                className="p-3 rounded-xl border flex flex-col justify-between gap-1"
+                style={{ background: "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)", borderColor: "var(--color-border)" }}
+              >
+                <div className="text-[10px] font-semibold" style={textMuted}>{c.label}</div>
+                <div className="font-bold text-base" style={{ color: toneColor(c.tone) }}>{c.value}</div>
+                <div className="text-[10px]" style={textMuted}>{c.note}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Corridor Override & Telemetry Action Deck (Col 4) */}
-      <div className="col-span-4 flex flex-col gap-4 min-h-0">
-        <div className={`border rounded-2xl p-5 flex flex-col gap-3.5 backdrop-blur-xl ${
-          darkMode ? "bg-[#0a1426]/85 border-slate-800/90 shadow-xl" : "bg-white border-slate-200 shadow-sm"
-        }`}>
-          <div className="text-xs font-extrabold flex items-center justify-between">
-            <span className={`flex items-center gap-2 ${darkMode ? "text-white" : "text-slate-900"}`}>
-              <ArrowRightLeft className="w-4 h-4 text-blue-600" />
+      {/* Corridor Override & Incident Feed */}
+      <div className="col-span-12 lg:col-span-4 flex flex-col gap-4 min-h-0">
+        <div className="glass-card p-5 flex flex-col gap-3.5">
+          <div className="text-xs font-extrabold flex items-center justify-between flex-wrap gap-2">
+            <span className="flex items-center gap-2" style={textMain}>
+              <ArrowRightLeft className="w-4 h-4" style={{ color: "var(--color-primary)" }} aria-hidden="true" />
               Manual Corridor Override
             </span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-bold ${
-              darkMode ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200"
-            }`}>
+            <span
+              className="text-[10px] font-mono px-2 py-0.5 rounded border font-bold"
+              style={{
+                color: "var(--color-primary)",
+                background: "color-mix(in srgb, var(--color-primary) 12%, transparent)",
+                borderColor: "color-mix(in srgb, var(--color-primary) 35%, transparent)",
+              }}
+            >
               OPERATIONS TIER 2
             </span>
           </div>
 
-          <div className={`border p-3.5 rounded-xl space-y-2.5 font-mono text-xs ${
-            darkMode ? "bg-[#040812] border-slate-800 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700"
-          }`}>
+          <div
+            className="border p-3.5 rounded-xl space-y-2.5 font-mono text-xs"
+            style={{ background: "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)", borderColor: "var(--color-border)" }}
+          >
             <div className="flex justify-between">
-              <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Selected Unit:</span>
-              <span className={`font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>{selectedRoute.id}</span>
+              <span style={textMuted}>Selected Unit:</span>
+              <span className="font-bold" style={textMain}>{selectedRoute.id}</span>
             </div>
             <div className="flex justify-between">
-              <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Carrier Partner:</span>
-              <span className={`font-semibold ${darkMode ? "text-slate-200" : "text-slate-800"}`}>{selectedRoute.carrier}</span>
+              <span style={textMuted}>Carrier Partner:</span>
+              <span className="font-semibold" style={textMain}>{selectedRoute.carrier}</span>
             </div>
             <div className="flex justify-between">
-              <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Transit Lane:</span>
-              <span className="text-blue-600 font-bold">{selectedRoute.origin} → {selectedRoute.dest}</span>
+              <span style={textMuted}>Transit Lane:</span>
+              <span className="font-bold" style={{ color: "var(--color-primary)" }}>{selectedRoute.origin} → {selectedRoute.dest}</span>
             </div>
             <div className="flex justify-between">
-              <span className={darkMode ? "text-slate-400" : "text-slate-500"}>Active Speed:</span>
-              <span className="text-emerald-600 font-bold">{selectedRoute.speed}</span>
+              <span style={textMuted}>Active Speed:</span>
+              <span className="font-bold" style={{ color: "var(--color-success)" }}>{selectedRoute.speed}</span>
             </div>
           </div>
 
-          <button className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-blue-600/25">
-            <ArrowRightLeft className="w-4 h-4" />
+          <button className="w-full py-3 btn-primary font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition">
+            <ArrowRightLeft className="w-4 h-4" aria-hidden="true" />
             Reroute to Secondary Multi-Modal Spine
           </button>
         </div>
 
         {/* Operational Incident Feed */}
-        <div className={`flex-1 border rounded-2xl p-5 flex flex-col min-h-0 backdrop-blur-xl ${
-          darkMode ? "bg-[#0a1426]/85 border-slate-800/90 shadow-xl" : "bg-white border-slate-200 shadow-sm"
-        }`}>
-          <div className="text-xs font-extrabold mb-3 flex items-center justify-between">
-            <span className="flex items-center gap-2 text-rose-600">
-              <AlertTriangle className="w-4 h-4" />
+        <div className="flex-1 glass-card p-5 flex flex-col min-h-0">
+          <div className="text-xs font-extrabold mb-3 flex items-center justify-between flex-wrap gap-2">
+            <span className="flex items-center gap-2" style={{ color: "var(--color-danger)" }}>
+              <AlertTriangle className="w-4 h-4" aria-hidden="true" />
               Live Operations Incident Stream
             </span>
-            <span className="text-[10px] font-mono text-slate-400">REST STREAM</span>
+            <span className="text-[10px] font-mono" style={textMuted}>REST STREAM</span>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-2.5 text-xs font-mono pr-1">
-            <div className={`p-3 rounded-xl border ${darkMode ? "bg-[#040812] border-rose-900/40 text-rose-200" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
-              <div className="font-bold text-[11px] mb-0.5">⚠️ RTM Marine Crane Outage</div>
+            <div
+              className="p-3 rounded-xl border"
+              style={{
+                color: "var(--color-danger)",
+                background: "color-mix(in srgb, var(--color-danger) 8%, transparent)",
+                borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)",
+              }}
+            >
+              <div className="font-bold text-[11px] mb-0.5">RTM Marine Crane Outage</div>
               <div className="text-[10px] opacity-90">Shift operations to Rail terminal #4 at Frankfurt.</div>
             </div>
-            <div className={`p-3 rounded-xl border ${darkMode ? "bg-[#040812] border-slate-800 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
-              <div className="font-bold text-[11px] mb-0.5">ℹ️ Frankfurt Rail Cleared</div>
-              <div className="text-[10px] opacity-90">Blockage lifted on south track. Full throughput restored.</div>
+            <div
+              className="p-3 rounded-xl border"
+              style={{ background: "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)", borderColor: "var(--color-border)", ...textMain }}
+            >
+              <div className="font-bold text-[11px] mb-0.5">Frankfurt Rail Cleared</div>
+              <div className="text-[10px] opacity-90" style={textMuted}>Blockage lifted on south track. Full throughput restored.</div>
             </div>
           </div>
         </div>

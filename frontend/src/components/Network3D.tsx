@@ -401,7 +401,7 @@ export default function Network3D({
 
   return (
     <div
-      className={`w-full h-full relative overflow-hidden rounded-2xl transition-colors duration-300 ${
+       className={`w-full h-full relative overflow-hidden rounded-2xl transition-colors duration-300 ${
         darkMode ? "bg-[#0b1528]" : "bg-[#edf4fb]"
       }`}
     >

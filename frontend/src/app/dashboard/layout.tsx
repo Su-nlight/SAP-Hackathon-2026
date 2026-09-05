@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Layers, ChevronRight, Radio, Lock } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -15,10 +15,18 @@ const textMuted = { color: "var(--color-text-muted)" };
 const textMain = { color: "var(--color-text)" };
 const primary = { color: "var(--color-primary)" };
 
+const VALID_ROLES: Role[] = ["Manager", "Operations", "Customer", "Admin"];
+
+function isRole(value: string | null): value is Role {
+  return VALID_ROLES.includes(value as Role);
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isDark } = useTheme();
   const pathname = usePathname();
-  const [role, setRole] = useState<Role>("Manager");
+  const searchParams = useSearchParams();
+  const initialRole = searchParams.get("role");
+  const [role, setRole] = useState<Role>(isRole(initialRole) ? initialRole : "Manager");
 
   return (
     <div
@@ -60,7 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="grid grid-cols-2 gap-1.5 p-1 rounded-xl border"
             style={{ background: "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)", borderColor: "var(--color-border)" }}
           >
-            {(["Manager", "Operations", "Customer", "Admin"] as Role[]).map((r) => (
+            {VALID_ROLES.map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
