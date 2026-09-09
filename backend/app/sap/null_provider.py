@@ -39,6 +39,8 @@ class NullSapProvider(SapProvider):
     def resolve_disruption(self, event_id: str) -> bool:
         raise SapNotConfigured(self._reason)
 
-
+    def delete_disruption(self, event_id: str) -> bool:
+        """Stub deletion for offline/seed mode."""
+        return True
 class SapNotConfigured(RuntimeError):
     """Raised when an SAP operation is attempted while offline."""

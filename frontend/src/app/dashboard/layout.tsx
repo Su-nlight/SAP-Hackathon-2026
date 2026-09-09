@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Layers, ChevronRight, Radio, Lock } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -15,17 +15,25 @@ const textMuted = { color: "var(--color-text-muted)" };
 const textMain = { color: "var(--color-text)" };
 const primary = { color: "var(--color-primary)" };
 
+const VALID_ROLES: Role[] = ["Manager", "Operations", "Customer", "Admin"];
+
+function isRole(value: string | null): value is Role {
+  return VALID_ROLES.includes(value as Role);
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isDark } = useTheme();
   const pathname = usePathname();
-  const [role, setRole] = useState<Role>("Manager");
+  const searchParams = useSearchParams();
+  const initialRole = searchParams.get("role");
+  const [role, setRole] = useState<Role>(isRole(initialRole) ? initialRole : "Manager");
 
   return (
     <div
       className="h-screen w-screen flex overflow-hidden font-sans select-none transition-colors duration-300"
       style={{ background: "var(--bg-gradient)", color: "var(--color-text)" }}
     >
-      {/* 1. Sidebar Navigation */}
+      {/* Modular Sidebar Navigation */}
       <aside
         className="w-64 glass-strong border-r flex flex-col shrink-0 transition-colors duration-300"
         style={{ borderColor: "var(--color-border)" }}
@@ -60,7 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="grid grid-cols-2 gap-1.5 p-1 rounded-xl border"
             style={{ background: "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)", borderColor: "var(--color-border)" }}
           >
-            {(["Manager", "Operations", "Customer", "Admin"] as Role[]).map((r) => (
+            {VALID_ROLES.map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
@@ -82,7 +90,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="text-[10px] font-mono font-bold uppercase px-2.5 py-1" style={textMuted}>
             {role} Modules
           </div>
-          {ROLE_NAV[role].map((item) => {
+          {ROLE_NAV[role]?.map((item) => {
             const isActive = item.href === pathname;
             const content = (
               <>
@@ -141,9 +149,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* 2. Main Workstation Area */}
+      {/* Main Workstation Shell */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Top Operational Bar */}
         <header
           className="h-14 glass border-b px-6 flex items-center justify-between shrink-0 transition-colors duration-300"
           style={{ borderColor: "var(--color-border)" }}
@@ -167,8 +174,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        {/* Page content */}
-        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+        {/* Injected Inner Page */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col">{children}</div>
       </main>
     </div>
   );

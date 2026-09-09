@@ -74,12 +74,18 @@ export default function ShipmentsPage() {
         description="Monitored purchase orders across all active corridors."
         action={
           <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={textMuted} />
+            <label htmlFor="shipment-search" className="sr-only">
+              Search purchase orders
+            </label>
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={textMuted} aria-hidden="true" />
             <input
+              id="shipment-search"
               type="text"
+              name="shipmentSearch"
+              autoComplete="off"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search PO, corridor, carrier..."
+              placeholder="Search PO, corridor, carrier…"
               className="glass-input rounded-xl pl-8 pr-3 py-2 text-xs w-64 focus:outline-none font-sans"
             />
           </div>
@@ -91,7 +97,7 @@ export default function ShipmentsPage() {
           className="flex items-center gap-2 text-[11px] font-mono px-3 py-2 rounded-xl"
           style={{ ...textMuted, background: "color-mix(in srgb, var(--color-bg-alt) 55%, transparent)" }}
         >
-          <Info className="w-3.5 h-3.5 shrink-0" />
+          <Info className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           Simulated ledger — the backend doesn&apos;t expose a shipments endpoint yet. Wire this to a
           real S/4HANA OData feed (or a new <code>/v1/shipments</code> route) when it&apos;s ready.
         </div>
@@ -100,7 +106,7 @@ export default function ShipmentsPage() {
       <div className="p-4 flex-1 min-h-0">
         <div className="glass-card h-full flex flex-col">
           <div className="p-4 pb-2 text-xs font-extrabold flex items-center gap-2 shrink-0" style={textMain}>
-            <Package className="w-4 h-4" style={primary} />
+            <Package className="w-4 h-4" style={primary} aria-hidden="true" />
             Purchase Order Ledger ({filtered.length})
           </div>
           <div className="flex-1 overflow-y-auto px-4 pb-4">
@@ -140,7 +146,7 @@ export default function ShipmentsPage() {
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-8 text-center" style={textMuted}>
-                      No shipments match "{query}".
+                      No shipments match &ldquo;{query}&rdquo;.
                     </td>
                   </tr>
                 )}
