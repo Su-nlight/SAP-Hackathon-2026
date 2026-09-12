@@ -139,10 +139,8 @@ class SapService:
 
     def sync(self) -> SapSyncResult:
         """Pull master data + mirrored disruptions from S/4HANA."""
-
         if self._provider.name == "offline":
             self._last_error = "SAP_BASE_URL not set — SAP bridge offline."
-
             return SapSyncResult(
                 ok=False,
                 connected=False,
@@ -174,7 +172,6 @@ class SapService:
 
         except SapConnectionError as exc:
             self._last_error = str(exc)
-
             return SapSyncResult(
                 ok=False,
                 connected=True,
@@ -245,7 +242,7 @@ class SapService:
             )
             nearest = min(
                 transport,
-                key = lambda t: haversine_km(point, t.location),
+                key=lambda t: haversine_km(point, t.location),
             )
 
             dist = haversine_km(
@@ -278,7 +275,6 @@ class SapService:
     def list_disruptions(self) -> list[SapDisruptionRow]:
         if self._provider.name == "offline":
             raise SapConnectionError("SAP bridge offline.")
-
         return self._provider.list_disruptions()
 
     def create_disruption(
@@ -298,19 +294,18 @@ class SapService:
     def approve_disruption(self, event_id: str) -> bool:
         if self._provider.name == "offline":
             raise SapConnectionError("SAP bridge offline.")
-
         return self._provider.approve_disruption(event_id)
 
     def resolve_disruption(self, event_id: str) -> bool:
         if self._provider.name == "offline":
             raise SapConnectionError("SAP bridge offline.")
-
         return self._provider.resolve_disruption(event_id)
+
     def delete_disruption(self, event_id: str) -> bool:
         if self._provider.name == "offline":
             raise SapConnectionError("SAP bridge offline.")
-
         return self._provider.delete_disruption(event_id)
+
     # ---- write-back ---------------------------------------------------
 
     def mirror_event(
@@ -319,7 +314,6 @@ class SapService:
         company_id: str = "acme",
         action: str = "created",
     ) -> bool:
-
         if self._provider.name == "offline":
             return False
 
@@ -361,7 +355,7 @@ class SapService:
                 self.create_disruption(row)
 
             return True
-        
+
         except (
             SapConnectionError,
             SapNotConfigured,
@@ -370,18 +364,16 @@ class SapService:
             return False
 
         except Exception as exc:
-            import traceback
             print(f"SAP mirror unexpected error: {exc}")
             print(traceback.format_exc())
             return False
-    
+
     def pull_approvals(
         self,
         log,
         disruption_service,
     ) -> list[str]:
         """Approve local events that were approved inside SAP."""
-
         if self._provider.name == "offline":
             return []
 
