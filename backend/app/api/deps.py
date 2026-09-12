@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
+from ..ai.agent.checkpointer import PersistentCheckpointer
 from ..ai.agent.graph import SupplyAgent
 from ..ai.agent.nodes import AgentNodes
 from ..ai.llm_registry import LLMRegistry, registry as default_registry
@@ -17,6 +18,7 @@ from ..domain.models import Network, Shipment
 from ..engine.networkx_engine import NetworkXEngine
 from ..sap.service import SapService
 from ..services.chat_service import DecisionChatService
+from ..services.approval_finalization_service import ApprovalFinalizationService
 from ..services.decision_archive_service import DecisionArchiveService
 from ..services.disruption_service import DisruptionService
 from ..services.heal_engine import HealEngine
@@ -47,8 +49,12 @@ log = EventLog(settings.event_log_path)
 log.load()
 hub = SinkHub()
 engine = NetworkXEngine()
-network_service = NetworkService(store, _load_shipments())
 routing_service = RoutingService(engine)
+network_service = NetworkService(
+    store,
+    _load_shipments(),
+    routing_service,
+)
 
 sap_service = SapService()
 
@@ -65,7 +71,6 @@ disruption_service = DisruptionService(
 )
 
 heal_engine = HealEngine(network_service, routing_service)
-scenario_service = ScenarioService(disruption_service)
 
 # Decision Archive & Chat singletons
 decision_archive_service = DecisionArchiveService()
@@ -80,11 +85,30 @@ agent_nodes = AgentNodes(
     decision_archive_service,
 )
 
-agent = SupplyAgent(agent_nodes)
+checkpointer = PersistentCheckpointer()
+agent = None
+approval_finalization_service = None
+scenario_service = None
 _auth_service = AuthService()
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
+async def initialize_agent() -> None:
+    global agent, approval_finalization_service, scenario_service
+
+    saver = await checkpointer.start()
+    agent = SupplyAgent(agent_nodes, saver)
+    approval_finalization_service = ApprovalFinalizationService(
+        agent,
+        disruption_service,
+        decision_archive_service,
+        hub,
+    )
+    scenario_service = ScenarioService(disruption_service, agent)
+
+
+async def close_agent() -> None:
+    await checkpointer.close()
 
 def get_llm_registry() -> LLMRegistry:
     return default_registry
@@ -112,6 +136,10 @@ def get_hub() -> SinkHub:
 
 def get_agent() -> SupplyAgent:
     return agent
+
+
+def get_approval_finalization_service() -> ApprovalFinalizationService:
+    return approval_finalization_service
 
 
 def get_sap_service() -> SapService:

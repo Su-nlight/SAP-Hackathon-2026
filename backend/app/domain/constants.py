@@ -46,6 +46,7 @@ class HealAction(str, Enum):
 
 class DisruptionStatus(str, Enum):
     ACTIVE = "active"
+    APPROVED = "approved"
     RESOLVED = "resolved"
     PENDING_REVIEW = "pending_review"
 

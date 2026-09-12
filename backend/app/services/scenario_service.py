@@ -13,8 +13,14 @@ from ..services.disruption_service import DisruptionService
 
 
 class ScenarioService:
-    def __init__(self, disruption_service: DisruptionService, scenarios_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        disruption_service: DisruptionService,
+        agent,
+        scenarios_path: Path | None = None,
+    ) -> None:
         self._ds = disruption_service
+        self._agent = agent
         self._path = scenarios_path or (settings.data_dir / "scenarios.json")
 
     def list_scenarios(self) -> list[dict]:
@@ -50,15 +56,24 @@ class ScenarioService:
                 expected_end=end,
                 impact_delay_hours=step.get("impact_delay_hours", 0.0),
                 capacity_factor=step.get("capacity_factor", 1.0),
-                source=f"scenario:{scenario_id}",
+                source="scenario",
                 raw_text=step.get("raw_text", ""),
             )
             self._ds.register(ev)
+            agent_result = None
+            if settings.ai_enabled:
+                agent_result = await self._agent.run(
+                    company_id="acme",
+                    raw_alert=ev.raw_text,
+                    thread_id=f"agent-{ev.id}",
+                    disruption_id=ev.id,
+                )
             injected.append(ev)
             await asyncio.sleep(0.05)  # let SSE fan-out breathe between steps
 
         return {
             "scenario": scenario_id,
             "name": scenario["name"],
+            "agent": agent_result,
             "injected": [e.model_dump(mode="json") for e in injected],
         }

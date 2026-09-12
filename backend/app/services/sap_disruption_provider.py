@@ -17,7 +17,7 @@ class SapDisruptionProvider(DisruptionProvider):
     def _row_to_event(self, row: SapDisruptionRow) -> DisruptionEvent:
         status_map = {
             "NEW": DisruptionStatus.ACTIVE,
-            "APPROVED": DisruptionStatus.ACTIVE,
+            "APPROVED": DisruptionStatus.APPROVED,
             "ACTIVE": DisruptionStatus.ACTIVE,
             "RESOLVED": DisruptionStatus.RESOLVED,
             "PENDING_REVIEW": DisruptionStatus.PENDING_REVIEW,
@@ -103,6 +103,9 @@ class SapDisruptionProvider(DisruptionProvider):
         if row is None:
             return None
 
+        if row.status.upper() == "APPROVED":
+            return self._row_to_event(row)
+
         self._sap.approve_disruption(event_id)
 
         updated = self._get_row(event_id)
@@ -161,7 +164,10 @@ class SapDisruptionProvider(DisruptionProvider):
         return [
             event
             for event in self.all()
-            if event.status == DisruptionStatus.ACTIVE
+            if event.status in {
+                DisruptionStatus.ACTIVE,
+                DisruptionStatus.APPROVED,
+            }
         ]
 
     def resolved(self) -> list[DisruptionEvent]:

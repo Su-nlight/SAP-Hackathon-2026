@@ -36,12 +36,12 @@ class Node(BaseModel):
     capacity: float = 1.0  # relative throughput capacity 0..1
     inventory: float = 0.0  # buffer stock available at this node
     status: Literal["online", "degraded", "offline"] = "online"
+    supplier_id: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class Edge(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
     id: str
     source: str
     target: str
@@ -53,6 +53,7 @@ class Edge(BaseModel):
     reliability: float = Field(default=0.9, ge=0, le=1)
     co2_per_ton_km: float = Field(default=0.02, ge=0)
     schedule: list[str] = Field(default_factory=list)  # departure windows (ISO times)
+    status: Literal["online", "degraded", "offline"] = "online"
 
 
 class Network(BaseModel):
@@ -74,6 +75,7 @@ class Shipment(BaseModel):
     budget_per_ton: float = Field(ge=0)
     priority: Literal["low", "standard", "high", "critical"] = "standard"
     mode_preference: Optional[EdgeMode] = None
+    supplier_id: Optional[str] = None
 
 
 class DisruptionEvent(BaseModel):
@@ -102,7 +104,10 @@ class DisruptionEvent(BaseModel):
         return self.expected_end is None
 
     def is_active_at(self, when: Optional[datetime] = None) -> bool:
-        if self.status != DisruptionStatus.ACTIVE:
+        if self.status not in {
+            DisruptionStatus.ACTIVE,
+            DisruptionStatus.APPROVED,
+        }:
             return False
         when = when or utcnow()
         if when < self.start_time:
@@ -136,6 +141,12 @@ class RouteAlternative(BaseModel):
     feasibility: Literal["feasible", "infeasible"] = "feasible"
     infeasible_reasons: list[str] = Field(default_factory=list)
 
+class SplitAllocation(BaseModel):
+    shipment_id: str
+    route_id: str
+    cargo_tons: float = Field(gt=0)
+    percentage: float = Field(gt=0, le=100)
+
 
 class HealDecision(BaseModel):
     action: HealAction
@@ -143,6 +154,7 @@ class HealDecision(BaseModel):
     alternatives: list[RouteAlternative] = Field(default_factory=list)
     wait_hours: Optional[float] = None  # for wait_hold
     affected_shipment_ids: list[str] = Field(default_factory=list)
+    split_allocations: list[SplitAllocation] = Field(default_factory=list)
 
 
 class ImpactAssessment(BaseModel):

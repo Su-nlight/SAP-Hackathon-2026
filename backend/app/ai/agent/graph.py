@@ -10,18 +10,19 @@ from __future__ import annotations
 import uuid
 from typing import Any, Optional
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
 from ...domain.constants import AgentStatus
-from .checkpointer import InMemorySaver
 from .nodes import AgentNodes
 from .state import SupplyAgentState
 
 
 class SupplyAgent:
-    def __init__(self, nodes: AgentNodes) -> None:
+    def __init__(self, nodes: AgentNodes, saver=None) -> None:
         self._nodes = nodes
+        self._saver = saver or InMemorySaver()
         self.graph = self._build()
 
     def _build(self):
@@ -46,7 +47,7 @@ class SupplyAgent:
         )
         g.add_edge("apply_plan", END)
 
-        return g.compile(checkpointer=InMemorySaver())
+        return g.compile(checkpointer=self._saver)
 
     # ---- approval interrupt ------------------------------------------
     async def _approval_node(self, state: SupplyAgentState) -> dict:
@@ -65,7 +66,7 @@ class SupplyAgent:
         else:
             approved = resume == "approved"
             feedback = None
-        return {"approved": approved, "feedback": feedback}
+        return {"approved": approved, "feedback": feedback , "disruption_id": state.get("disruption_id")}
 
     @staticmethod
     def _route_after_approval(state: SupplyAgentState) -> str:
@@ -92,7 +93,7 @@ class SupplyAgent:
         if disruption_id:
             initial["disruption_id"] = disruption_id
         result = await self.graph.ainvoke(initial, config=config)
-        snapshot = self.graph.get_state(config)
+        snapshot = await self.graph.aget_state(config)
         return {
             "thread_id": thread_id,
             "state": result,
@@ -100,16 +101,64 @@ class SupplyAgent:
             "next_nodes": list(snapshot.next),
         }
 
-    async def resume(self, thread_id: str, approved: bool, feedback: Optional[str] = None) -> dict:
+    async def resume(
+        self,
+        thread_id: str,
+        approved: bool,
+        feedback: Optional[str] = None,
+    ) -> dict:
         config = {"configurable": {"thread_id": thread_id}}
-        payload: Any = {"approved": approved}
+
+        snapshot = await self.graph.aget_state(config)
+
+        if snapshot is None or not snapshot.values:
+            raise ValueError(f"No agent state for thread {thread_id}")
+        if "approval" not in snapshot.next:
+            raise ValueError(
+                f"Agent thread {thread_id} is not awaiting approval"
+            )
+
+        payload: Any = {
+            "approved": approved,
+        }
+
         if feedback:
             payload["feedback"] = feedback
-        result = await self.graph.ainvoke(Command(resume=payload), config=config)
-        snapshot = self.graph.get_state(config)
+
+        values = snapshot.values
+
+        if not values.get("disruption_id"):
+            event_id = thread_id.removeprefix("agent-")
+            payload["disruption_id"] = event_id
+
+        result = await self.graph.ainvoke(
+            Command(resume=payload),
+            config=config,
+        )
+
+        snapshot = await self.graph.aget_state(config)
+
         return {
             "thread_id": thread_id,
             "state": result,
             "awaiting_approval": bool(snapshot.next),
             "next_nodes": list(snapshot.next),
         }
+
+    async def state(self, thread_id: str) -> dict[str, Any]:
+        config = {"configurable": {"thread_id": thread_id}}
+        snapshot = await self.graph.aget_state(config)
+        if snapshot is None or not snapshot.values:
+            raise ValueError(f"No agent state for thread {thread_id}")
+        return {
+            "values": dict(snapshot.values),
+            "next_nodes": list(snapshot.next),
+        }
+
+    async def is_awaiting_approval(self, thread_id: str) -> bool:
+        snapshot = await self.state(thread_id)
+        return (
+            snapshot["values"].get("status")
+            == AgentStatus.AWAITING_APPROVAL.value
+            and "approval" in snapshot["next_nodes"]
+        )

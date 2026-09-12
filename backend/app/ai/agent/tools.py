@@ -17,9 +17,9 @@ def build_tools(network_service: NetworkService, routing_service: RoutingService
     rs = routing_service
 
     @tool
-    def get_network_health() -> dict:
+    def get_network_health(active_events: list[DisruptionEvent] | None = None) -> dict:
         """Return the current network health: node/edge counts and status."""
-        current = ns.current([])
+        current = ns.current(active_events or [])
         offline_nodes = [n for n in current.nodes.values() if n.status == "offline"]
         offline_edges = [e for e in current.edges.values() if e.status == "offline"]
         return {

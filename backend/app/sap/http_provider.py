@@ -276,7 +276,7 @@ class S4HttpProvider(SapProvider):
             "ManualReview": "X" if row.manual_review else "",
             "PayloadJson": row.payload_json,
         }
-
+        print("SAP CREATE DISRUPTION BODY:", body)
         raw = self._request(
             "POST",
             "ZHEAL_DISRUPTIONSet",
