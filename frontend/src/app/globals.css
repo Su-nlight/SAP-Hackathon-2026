@@ -68,8 +68,8 @@
   --midnight-blue: #081849;
   --soft-beige: #ecdfd2;
   --light-gray-d: #ccccca;
-  --plum: #5f3475;
-  --magenta: #893172;
+  --teal: #0d9488;
+  --cyan: #22d3ee;
 
   /* --- semantic tokens --- */
   --color-bg: var(--midnight-blue);
@@ -79,8 +79,8 @@
   --color-text-muted: #b9b4c9;
   --color-primary: var(--deep-blue);
   --color-primary-strong: #4257b3;
-  --color-secondary: var(--plum);
-  --color-accent: var(--magenta);
+  --color-secondary: var(--teal);
+  --color-accent: var(--cyan);
   --color-border: rgba(204, 202, 204, 0.18);
   --color-danger: #ff6b6b;
   --color-success: #4ade80;
@@ -96,7 +96,7 @@
   /* --- gradient backdrop --- */
   --bg-gradient: radial-gradient(
       circle at 15% 20%,
-      color-mix(in srgb, var(--plum) 55%, transparent) 0%,
+      color-mix(in srgb, var(--teal) 45%, transparent) 0%,
       transparent 45%
     ),
     radial-gradient(
@@ -106,7 +106,7 @@
     ),
     radial-gradient(
       circle at 50% 90%,
-      color-mix(in srgb, var(--magenta) 45%, transparent) 0%,
+      color-mix(in srgb, var(--cyan) 35%, transparent) 0%,
       transparent 55%
     ),
     var(--midnight-blue);

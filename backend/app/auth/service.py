@@ -91,3 +91,4 @@ class AuthService:
             company_id=u["company_id"],
             roles=u.get("roles", ["operator"]),
         )
+  
