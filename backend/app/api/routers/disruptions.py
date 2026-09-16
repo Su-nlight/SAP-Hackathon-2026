@@ -1,20 +1,29 @@
 """Disruption endpoints: lifecycle, approval, raw-text ingestion."""
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...ai.agent.graph import SupplyAgent
 from ...config import settings
 from ...domain.constants import DisruptionType, HealAction, Severity
 from ...domain.models import DisruptionEvent, HealDecision
-from ...sap.service import SapService
+from ...services.approval_finalization_service import (
+    ApprovalFinalizationError,
+    ApprovalNotPendingError,
+    ArchiveFinalizationError,
+    ProviderApprovalError,
+)
 from ...services.disruption_service import DisruptionService
-from ..deps import get_agent, get_current_identity, get_disruption_service, get_sap_service
+from ..deps import (
+    get_agent,
+    get_approval_finalization_service,
+    get_current_identity,
+    get_disruption_service,
+)
 
 router = APIRouter(prefix="/v1/disruptions", tags=["disruptions"])
 
@@ -28,13 +37,57 @@ class ApprovalIn(BaseModel):
     feedback: str | None = None
 
 
+def _parse_raw_alert(event_id: str, raw_text: str) -> DisruptionEvent:
+    """Create a valid seed-network disruption when raw-alert parsing is needed.
+
+    This deterministic fallback deliberately uses real seed IDs, so it can be
+    registered before the agent assesses impact. The agent then works from the
+    same persisted event as manually created and scenario disruptions.
+    """
+    text = raw_text.lower()
+    if "suez" in text:
+        target_id = "P9"
+        disruption_type = DisruptionType.BLOCKAGE
+    elif "singapore" in text:
+        target_id = "P7"
+        disruption_type = DisruptionType.PORT_CLOSURE
+    elif "shanghai" in text:
+        target_id = "P6"
+        disruption_type = DisruptionType.PORT_CLOSURE
+    else:
+        target_id = "P8"
+        disruption_type = DisruptionType.PORT_CLOSURE
+
+    severity_terms = {
+        "severe",
+        "complete",
+        "emergency",
+        "blocked",
+        "closed",
+        "shutdown",
+    }
+    severity = (
+        Severity.FULL
+        if any(term in text for term in severity_terms)
+        else Severity.PARTIAL
+    )
+    return DisruptionEvent(
+        id=event_id,
+        type=disruption_type,
+        target_type="node",
+        target_id=target_id,
+        severity=severity,
+        start_time=datetime.now(timezone.utc),
+        source="raw_alert",
+        raw_text=raw_text,
+    )
+
+
 @router.post("", status_code=201)
 async def create_disruption(
     body: DisruptionEvent,
-    background_tasks: BackgroundTasks,
     identity: dict = Depends(get_current_identity),
     ds: DisruptionService = Depends(get_disruption_service),
-    sap: SapService = Depends(get_sap_service),
     agent: SupplyAgent = Depends(get_agent),
 ):
     try:
@@ -43,14 +96,6 @@ async def create_disruption(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     company_id = identity.get("company_id", "acme")
-
-    if settings.data_provider == "sap":
-        background_tasks.add_task(
-            sap.mirror_event,
-            event,
-            company_id=company_id,
-            action="created",
-        )
 
     agent_result = None
     agent_error = None
@@ -85,6 +130,11 @@ async def ingest_raw_alert(
     event_id = f"d-{uuid.uuid4().hex[:8]}"
     company_id = identity.get("company_id", "acme")
 
+    try:
+        event = ds.register(_parse_raw_alert(event_id, body.raw_text))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     if settings.ai_enabled:
         try:
             result = await agent.run(
@@ -95,7 +145,8 @@ async def ingest_raw_alert(
             )
             return {
                 "thread_id": result["thread_id"],
-                "disruption_id": event_id,
+                "disruption_id": event.id,
+                "event": event.model_dump(mode="json"),
                 "awaiting_approval": result.get("awaiting_approval", True),
                 "narrative": result["state"].get("narrative"),
                 "decision": (
@@ -105,55 +156,30 @@ async def ingest_raw_alert(
                 ),
             }
         except Exception as exc:
-            print(f"[ingest_raw_alert] AI agent run failed ({exc}), activating fallback")
-
-    text = body.raw_text.lower()
-    if "suez" in text:
-        target_id = "E-SUEZ"
-        target_type = "edge"
-    elif "singapore" in text:
-        target_id = "N-SINGAPORE"
-        target_type = "node"
-    elif "shanghai" in text:
-        target_id = "N-SHANGHAI"
-        target_type = "node"
+            agent_error = str(exc)
+            print(f"[ingest_raw_alert] AI agent run failed ({exc}), returning registered event")
     else:
-        target_id = "N-ROTTERDAM"
-        target_type = "node"
-
-    if target_type == "node":
-        dtype = DisruptionType.PORT_CLOSURE if ("closed" in text or "blocked" in text) else DisruptionType.PORT_CONGESTION
-    else:
-        dtype = DisruptionType.BLOCKAGE
-
-    severity = Severity.FULL if any(k in text for k in ["severe", "complete", "emergency", "blocked"]) else Severity.PARTIAL
-
-    try:
-        fallback_event = DisruptionEvent(
-            id=event_id,
-            type=dtype,
-            target_type=target_type,
-            target_id=target_id,
-            severity=severity,
-            start_time=datetime.now(timezone.utc),
-            raw_text=body.raw_text,
-        )
-        ds.register(fallback_event)
-    except Exception as reg_err:
-        print(f"[ingest_raw_alert] Could not register fallback event: {reg_err}")
+        agent_error = "AI agent is disabled."
 
     fallback_decision = HealDecision(
         action=HealAction.REROUTE,
-        target_id=target_id,
-        reason=f"Automated fallback strategy for {dtype.value} on {target_id}",
+        reason=(
+            f"Registered {event.type.value} on {event.target_id}; "
+            "agent assessment is unavailable."
+        ),
         affected_shipment_ids=[],
     )
 
     return {
         "thread_id": f"agent-{event_id}",
-        "disruption_id": event_id,
-        "awaiting_approval": True,
-        "narrative": f"Identified {severity.value} {dtype.value} at {target_id}. Heuristic engine recommended rerouting affected shipments.",
+        "disruption_id": event.id,
+        "event": event.model_dump(mode="json"),
+        "awaiting_approval": False,
+        "agent_error": agent_error,
+        "narrative": (
+            f"Identified {event.severity.value} {event.type.value} at "
+            f"{event.target_id}. The event was registered for review."
+        ),
         "decision": fallback_decision.model_dump(mode="json"),
     }
 
@@ -199,79 +225,61 @@ async def approve_disruption(
     event_id: str,
     body: ApprovalIn,
     ds: DisruptionService = Depends(get_disruption_service),
-    sap: SapService = Depends(get_sap_service),
+    agent: SupplyAgent = Depends(get_agent),
+    finalizer = Depends(get_approval_finalization_service),
 ):
     if not body.approved:
-        raise HTTPException(
-            status_code=400,
-            detail="Rejection workflow is not implemented yet.",
-        )
+        if not settings.ai_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="AI rejection workflow requires AI to be enabled.",
+            )
 
-    if ds.get(event_id) is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unknown disruption {event_id}",
-        )
+        if ds.get(event_id) is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown disruption {event_id}",
+            )
 
-    if settings.ai_enabled:
         try:
             result = await agent.resume(
                 thread_id=f"agent-{event_id}",
-                approved=True,
+                approved=False,
                 feedback=body.feedback,
             )
 
             return {
                 "event_id": event_id,
                 "thread_id": result["thread_id"],
-                "approved": True,
+                "approved": False,
                 "status": result["state"].get("status"),
+                "awaiting_approval": result["awaiting_approval"],
+                "next_nodes": result["next_nodes"],
                 "provider": settings.data_provider,
             }
 
         except Exception as exc:
-            try:
-                if settings.data_provider == "sap":
-                    sap.approve_disruption(event_id)
-                else:
-                    ds.approve(event_id)
-
-                return {
-                    "event_id": event_id,
-                    "thread_id": f"agent-{event_id}",
-                    "approved": True,
-                    "status": "approved",
-                    "provider": settings.data_provider,
-                    "fallback_reason": str(exc),
-                }
-
-            except Exception as fallback_exc:
-                raise HTTPException(
-                    status_code=502,
-                    detail=(
-                        f"AI approval failed: {exc}; "
-                        f"fallback approval failed: {fallback_exc}"
-                    ),
-                ) from fallback_exc
+            raise HTTPException(
+                status_code=500,
+                detail=f"Rejection workflow failed: {exc}",
+            ) from exc
 
     try:
-        if settings.data_provider == "sap":
-            sap.approve_disruption(event_id)
-        else:
-            ds.approve(event_id)
-
-    except Exception as exc:
+        result = await finalizer.approve(event_id, feedback=body.feedback)
+    except ApprovalNotPendingError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ProviderApprovalError as exc:
         raise HTTPException(
             status_code=502,
             detail=f"Approval failed: {exc}",
         ) from exc
+    except ArchiveFinalizationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ApprovalFinalizationError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return {
-        "event_id": event_id,
-        "approved": True,
-        "status": "approved",
-        "provider": settings.data_provider,
-    }
+    result["provider"] = settings.data_provider
+    return result
 
 
 @router.get("/{event_id}/state")
@@ -299,10 +307,8 @@ async def get_disruption_state(
 @router.post("/{event_id}/resolve")
 async def resolve_disruption(
     event_id: str,
-    background_tasks: BackgroundTasks,
     identity: dict = Depends(get_current_identity),
     ds: DisruptionService = Depends(get_disruption_service),
-    sap: SapService = Depends(get_sap_service),
 ):
     resolved = ds.resolve(event_id)
 
@@ -312,16 +318,6 @@ async def resolve_disruption(
             detail=f"Unknown disruption {event_id}",
         )
 
-    company_id = identity.get("company_id", "acme")
-
-    if settings.data_provider == "sap":
-        background_tasks.add_task(
-            sap.mirror_event,
-            resolved,
-            company_id=company_id,
-            action="resolved",
-        )
-
     return {"event": resolved.model_dump(mode="json")}
 
 
@@ -329,7 +325,6 @@ async def resolve_disruption(
 async def delete_disruption(
     event_id: str,
     ds: DisruptionService = Depends(get_disruption_service),
-    sap: SapService = Depends(get_sap_service),
 ):
     if ds.get(event_id) is None:
         raise HTTPException(
@@ -337,16 +332,7 @@ async def delete_disruption(
             detail=f"Unknown disruption {event_id}",
         )
 
-    if settings.data_provider == "sap":
-        try:
-            sap.delete_disruption(event_id)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=f"SAP deletion failed: {exc}",
-            ) from exc
-    else:
-        ds.delete(event_id)
+    ds.delete(event_id)
 
     return {
         "event_id": event_id,

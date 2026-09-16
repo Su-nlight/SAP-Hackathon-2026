@@ -6,9 +6,15 @@ from ..store.network_store import NetworkStore
 
 
 class NetworkService:
-    def __init__(self, store: NetworkStore, shipments: list[Shipment]) -> None:
+    def __init__(
+        self,
+        store: NetworkStore,
+        shipments: list[Shipment],
+        routing_service=None,
+    ) -> None:
         self._store = store
         self._shipments = {s.id: s for s in shipments}
+        self._routing = routing_service
 
     @property
     def shipments(self) -> dict[str, Shipment]:
@@ -17,9 +23,6 @@ class NetworkService:
     def current(self, events: list[DisruptionEvent]) -> Network:
         return self._store.current(events)
 
-    def find_affected_shipments(
-        self, event: DisruptionEvent, current: Network
-    ) -> list[Shipment]:
         """Shipments whose current planned path touches the disrupted element.
 
         In the prototype the 'current plan' is approximated as any
@@ -28,8 +31,34 @@ class NetworkService:
         (i.e. the element is a cut). For the demo the first rule is the
         workhorse; the cut rule makes open-ended closures meaningful.
         """
-        hits: list[Shipment] = []
-        for s in self._shipments.values():
-            if event.target_type == "node" and event.target_id in (s.origin, s.destination):
-                hits.append(s)
-        return hits
+    def find_affected_shipments(
+        self, event: DisruptionEvent, current: Network
+    ) -> list[Shipment]:
+        if self._routing is None:
+            return []
+
+        baseline = self._store.current([])
+        affected: list[Shipment] = []
+
+        for shipment in self._shipments.values():
+            baseline_route = self._routing.shortest(
+                baseline,
+                shipment,
+                [],
+            )
+
+            if baseline_route is None:
+                continue
+
+            if event.target_type == "node":
+                if event.target_id in baseline_route.path:
+                    affected.append(shipment)
+
+            elif event.target_type == "edge":
+                if any(
+                    leg.edge_id == event.target_id
+                    for leg in baseline_route.legs
+                ):
+                    affected.append(shipment)
+
+        return affected

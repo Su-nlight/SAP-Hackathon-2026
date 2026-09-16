@@ -62,7 +62,7 @@ def disruption_multipliers(
         else:
             time_mult *= 1.0 + (ev.impact_delay_hours / max(edge.base_time_hours, 1.0))
             cap_factor = min(cap_factor, ev.capacity_factor)
-            cost_mult *= 1.0 / max(cap_factor, 0.05)
+            cost_mult *= 1.0 / max(ev.capacity_factor, 0.05)
 
     return time_mult, cost_mult, cap_factor
 

@@ -31,11 +31,10 @@ export default function SignInPage() {
     setError(null);
     setLoading(true);
 
-    try {
       if (mode === "signin") {
-        await login({ username, password });
+        await login({ username: username.trim(), password });
       } else {
-        await register({ username, email, company_id: companyId, password });
+        await register({ username: username.trim(), email: email.trim(), company_id: companyId.trim(), password });
       }
       router.push("/hub");
     } catch (err) {

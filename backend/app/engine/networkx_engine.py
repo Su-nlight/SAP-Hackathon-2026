@@ -20,15 +20,22 @@ class NetworkXEngine(GraphEngine):
     """
 
     def _build(self, network: Network, active_events: list[DisruptionEvent], alpha: float):
-        g = nx.MultiDiGraph()
+        g = nx.DiGraph()
         for nid in network.nodes:
             g.add_node(nid)
         for eid, edge in network.edges.items():
             w, eff_time, eff_cost = composite_weight(edge, active_events, alpha=alpha)
             if w >= OFFLINE_MULTIPLIER:
                 continue  # effectively offline -> not traversable
-            g.add_edge(edge.source, edge.target, key=eid, weight=w,
-                       time=eff_time, cost=eff_cost, edge_obj=edge)
+            g.add_edge(
+                edge.source,
+                edge.target,
+                weight=w,
+                time=eff_time,
+                cost=eff_cost,
+                edge_id=eid,
+                edge_obj=edge,
+            )
         return g
 
     @staticmethod
@@ -41,7 +48,7 @@ class NetworkXEngine(GraphEngine):
                 continue
             edge: Edge = data["edge_obj"]
             legs.append(RouteLeg(
-                edge_id=data.get("key", ""),
+                edge_id=data.get("edge_id", ""),
                 mode=edge.mode,
                 source=a,
                 target=b,
