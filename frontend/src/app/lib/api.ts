@@ -251,3 +251,43 @@ export async function runScenario(scenario_id: string) {
   const { data } = await api.post('/v1/scenarios/run', { scenario_id });
   return data;
 }
+
+/* ---------------------------------------------------------------- */
+/* AI Chatbot                                                        */
+/* ---------------------------------------------------------------- */
+
+export interface ChatMessageDTO {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversation_id?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface ChatResponse {
+  answer?: string;
+  response?: string;
+  message?: string;
+  conversation_id?: string;
+}
+
+/**
+ * Sends a message to the AI chatbot.
+ *
+ * IMPORTANT:
+ * Replace '/v1/chat' with your actual backend
+ * chatbot endpoint once confirmed.
+ */
+export async function sendChatMessage(
+  payload: ChatRequest
+): Promise<ChatResponse> {
+  const { data } = await api.post<ChatResponse>(
+    '/v1/chat',
+    payload
+  );
+
+  return data;
+}

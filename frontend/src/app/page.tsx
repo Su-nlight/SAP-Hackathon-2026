@@ -44,8 +44,7 @@ export default function SignInPage() {
 
     setError(null);
     setLoading(true);
-
-    try {
+    try{
       if (mode === "signin") {
         await login({
           username: username.trim(),
