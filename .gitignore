@@ -6,3 +6,6 @@ testing.py.next
 **/.next
 frontend/frontend
 node_modules
+.vscode*
+backend/data/*
+*testing.py

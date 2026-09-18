@@ -30,7 +30,7 @@ export default function SignInPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
+    try{
       if (mode === "signin") {
         await login({ username: username.trim(), password });
       } else {
