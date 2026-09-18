@@ -14,6 +14,7 @@ langchain-anthropic
 langchain-groq
 langchain-ollama
 httpx
+sqlite-utils
 # --- dev / test ---
 pytest
 pytest-asyncio
