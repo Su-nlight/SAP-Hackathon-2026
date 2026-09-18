@@ -3,7 +3,16 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
-import { Lock, User, Eye, EyeOff, ArrowRight, Loader2, Mail, Building2 } from "lucide-react";
+import {
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Loader2,
+  Mail,
+  Building2,
+} from "lucide-react";
 import AuthShell from "@/components/AuthShell";
 import { login, register } from "@/app/lib/api";
 
@@ -11,10 +20,12 @@ type Mode = "signin" | "signup";
 
 const inputClass =
   "w-full pl-9 pr-3 py-2.5 rounded-xl text-sm glass-input transition-all";
+
 const labelClass = "text-xs font-semibold mb-1.5 block";
 
 export default function SignInPage() {
   const router = useRouter();
+
   const [mode, setMode] = useState<Mode>("signin");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -24,18 +35,30 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const labelStyle = { color: "var(--color-text-muted)" };
+  const labelStyle = {
+    color: "var(--color-text-muted)",
+  };
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
     setError(null);
     setLoading(true);
     try{
       if (mode === "signin") {
-        await login({ username: username.trim(), password });
+        await login({
+          username: username.trim(),
+          password,
+        });
       } else {
-        await register({ username: username.trim(), email: email.trim(), company_id: companyId.trim(), password });
+        await register({
+          username: username.trim(),
+          email: email.trim(),
+          company_id: companyId.trim(),
+          password,
+        });
       }
+
       router.push("/hub");
     } catch (err) {
       if (isAxiosError(err)) {
@@ -52,7 +75,9 @@ export default function SignInPage() {
           );
         }
       } else {
-        setError("Couldn't reach the server. Check your connection and try again.");
+        setError(
+          "Couldn't reach the server. Check your connection and try again."
+        );
       }
     } finally {
       setLoading(false);
@@ -72,7 +97,8 @@ export default function SignInPage() {
       <div
         className="grid grid-cols-2 gap-1.5 p-1 rounded-xl border mb-6"
         style={{
-          background: "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)",
+          background:
+            "color-mix(in srgb, var(--color-bg-alt) 60%, transparent)",
           borderColor: "var(--color-border)",
         }}
         role="tablist"
@@ -106,15 +132,21 @@ export default function SignInPage() {
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <div>
-          <label htmlFor="username" className={labelClass} style={labelStyle}>
+          <label
+            htmlFor="username"
+            className={labelClass}
+            style={labelStyle}
+          >
             Username
           </label>
+
           <div className="relative">
             <User
               className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
               style={labelStyle}
               aria-hidden="true"
             />
+
             <input
               id="username"
               name="username"
@@ -132,15 +164,21 @@ export default function SignInPage() {
         {mode === "signup" && (
           <>
             <div>
-              <label htmlFor="email" className={labelClass} style={labelStyle}>
+              <label
+                htmlFor="email"
+                className={labelClass}
+                style={labelStyle}
+              >
                 Work Email
               </label>
+
               <div className="relative">
                 <Mail
                   className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
                   style={labelStyle}
                   aria-hidden="true"
                 />
+
                 <input
                   id="email"
                   name="email"
@@ -156,15 +194,21 @@ export default function SignInPage() {
             </div>
 
             <div>
-              <label htmlFor="companyId" className={labelClass} style={labelStyle}>
+              <label
+                htmlFor="companyId"
+                className={labelClass}
+                style={labelStyle}
+              >
                 Company ID
               </label>
+
               <div className="relative">
                 <Building2
                   className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
                   style={labelStyle}
                   aria-hidden="true"
                 />
+
                 <input
                   id="companyId"
                   name="companyId"
@@ -182,20 +226,28 @@ export default function SignInPage() {
         )}
 
         <div>
-          <label htmlFor="password" className={labelClass} style={labelStyle}>
+          <label
+            htmlFor="password"
+            className={labelClass}
+            style={labelStyle}
+          >
             Password
           </label>
+
           <div className="relative">
             <Lock
               className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
               style={labelStyle}
               aria-hidden="true"
             />
+
             <input
               id="password"
               name="password"
               type={showPassword ? "text" : "password"}
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              autoComplete={
+                mode === "signin" ? "current-password" : "new-password"
+              }
               spellCheck={false}
               required
               value={password}
@@ -203,6 +255,7 @@ export default function SignInPage() {
               placeholder="••••••••"
               className={`${inputClass} pr-10`}
             />
+
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
@@ -226,8 +279,10 @@ export default function SignInPage() {
             className="text-xs font-medium px-3 py-2.5 rounded-xl"
             style={{
               color: "var(--color-danger)",
-              background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
-              border: "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)",
+              background:
+                "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+              border:
+                "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)",
             }}
           >
             {error}
@@ -241,8 +296,13 @@ export default function SignInPage() {
         >
           {loading ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-              {mode === "signin" ? "Signing in…" : "Creating account…"}
+              <Loader2
+                className="w-4 h-4 animate-spin"
+                aria-hidden="true"
+              />
+              {mode === "signin"
+                ? "Signing in…"
+                : "Creating account…"}
             </>
           ) : (
             <>

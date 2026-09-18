@@ -288,7 +288,7 @@ async def get_disruption_state(
     agent: SupplyAgent = Depends(get_agent),
 ):
     config = {"configurable": {"thread_id": f"agent-{event_id}"}}
-    snapshot = agent.graph.get_state(config)
+    snapshot = await agent.graph.aget_state(config)
     if snapshot is None or snapshot.values.get("status") is None:
         raise HTTPException(status_code=404, detail=f"No agent state for disruption {event_id}")
     values = snapshot.values
