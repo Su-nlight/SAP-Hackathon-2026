@@ -14,7 +14,7 @@ import {
   Building2,
 } from "lucide-react";
 import AuthShell from "@/components/AuthShell";
-import { login, register } from "@/app/lib/api";
+import { login, register } from "@/lib/api";
 
 type Mode = "signin" | "signup";
 
@@ -155,7 +155,7 @@ export default function SignInPage() {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. acme_admin"
+              placeholder="Enter your Username"
               className={inputClass}
             />
           </div>

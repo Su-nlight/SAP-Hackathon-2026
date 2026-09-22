@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
@@ -15,6 +16,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import api from "@/lib/api";
 import type { NodePoint, RouteLink } from "../../components/Network3D";
 
 const Network3D = dynamic(() => import("../../components/Network3D"), {
@@ -62,7 +64,7 @@ interface RouteAlternative {
   total_cost_per_ton: number;
   total_risk: number;
   total_co2_per_ton: number;
-  feasibility: string;
+  feasibility: "OPTIMAL" | "FEASIBLE" | "HIGH_RISK" | "BLOCKED";
 }
 
 interface HealDecision {
@@ -103,11 +105,45 @@ function severityStyle(severity: string) {
   };
 }
 
+function mapNodeStatus(rawStatus?: unknown): NodePoint["status"] {
+  const s = String(rawStatus || "").toLowerCase();
+  if (s === "disrupted" || s === "critical") return "disrupted";
+  if (s === "degraded" || s === "warning" || s === "congested") return "degraded";
+  return "active";
+}
+
+function mapEdgeStatus(rawStatus?: unknown): RouteLink["status"] {
+  const s = String(rawStatus || "").toLowerCase();
+  if (s === "blocked" || s === "disrupted" || s === "closed") return "blocked";
+  if (s === "congested" || s === "degraded" || s === "delayed") return "congested";
+  return "active";
+}
+
+function normalizeFeasibility(alt: Partial<RouteAlternative>): RouteAlternative["feasibility"] {
+  if (alt.feasibility && ["OPTIMAL", "FEASIBLE", "HIGH_RISK", "BLOCKED"].includes(alt.feasibility)) {
+    return alt.feasibility as RouteAlternative["feasibility"];
+  }
+  const r = alt.total_risk ?? 0;
+  if (r >= 0.8) return "BLOCKED";
+  if (r >= 0.5) return "HIGH_RISK";
+  if (r <= 0.25) return "OPTIMAL";
+  return "FEASIBLE";
+}
+
 export default function OperationsPage() {
+  const router = useRouter();
+
   const [activeTab, setActiveTab] = useState<"incidents" | "nodes">("incidents");
   const [searchFilter, setSearchFilter] = useState("");
+
   const [health, setHealth] = useState<NetworkHealth | null>(null);
+  const [loadingHealth, setLoadingHealth] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
+
   const [graphData, setGraphData] = useState<{ nodes: NodePoint[]; edges: RouteLink[] }>({ nodes: [], edges: [] });
+  const [loadingGraph, setLoadingGraph] = useState(false);
+  const [graphError, setGraphError] = useState<string | null>(null);
+
   const [disruptions, setDisruptions] = useState<DisruptionEvent[]>([]);
   const [selectedDisruptionId, setSelectedDisruptionId] = useState<string | null>(null);
   const [activePlan, setActivePlan] = useState<AgentState | null>(null);
@@ -123,94 +159,78 @@ export default function OperationsPage() {
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedDisruptionId;
 
-  const ensureAuthToken = async (): Promise<string | null> => {
-    const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    if (t) return t;
-    try {
-      const res = await fetch(`${API_BASE}/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "acme_admin", password: "admin123" }),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        if (d.access_token) {
-          localStorage.setItem("token", d.access_token);
-          return d.access_token;
-        }
-      }
-    } catch {
-      /* fall through to unauthenticated request */
-    }
-    return null;
-  };
-
-  const getHeaders = async () => {
-    const token = await ensureAuthToken();
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
-
   const loadBaseData = useCallback(async () => {
-    try {
-      const [hRes, gRes, dRes] = await Promise.all([
-        fetch(`${API_BASE}/v1/network/health`),
-        fetch(`${API_BASE}/v1/network/graph`),
-        fetch(`${API_BASE}/v1/disruptions?status=active`),
-      ]);
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!token) {
+      router.push("/");
+      return;
+    }
 
-      if (hRes.ok) setHealth(await hRes.json());
-      if (gRes.ok) {
-        const gData = await gRes.json();
-        const rawNodes = gData.nodes || [];
-        const rawEdges = gData.edges || [];
+    setLoadingHealth(true);
+    setLoadingGraph(true);
+    setHealthError(null);
+    setGraphError(null);
 
-        const formattedNodes: NodePoint[] = rawNodes.map((n: Record<string, unknown>) => {
-          const rawStatus = String(n.status || "").toLowerCase();
-          const validStatus: NodePoint["status"] =
-            rawStatus === "disrupted"
-              ? "disrupted"
-              : rawStatus === "degraded" || rawStatus === "warning"
-              ? "degraded"
-              : "active";
+    const fetchHealth = api
+      .get<NetworkHealth>("/v1/network/health")
+      .then((res: { data: NetworkHealth }) => setHealth(res.data))
+      .catch((err: Error) => setHealthError(err?.message || "Health telemetry unreachable"))
+      .finally(() => setLoadingHealth(false));
 
-          return {
-            id: String(n.id || n.node_id || ""),
-            name: String(n.name || n.label || n.id || n.node_id || "Node"),
-            lat: Number(n.lat ?? n.latitude ?? (n.coordinates as number[])?.[1] ?? 0),
-            lng: Number(n.lng ?? n.lon ?? n.longitude ?? (n.coordinates as number[])?.[0] ?? 0),
-            type: (n.type as any) || "hub",
-            status: validStatus,
-          };
-        });
+    const fetchGraph = api
+      .get<{ nodes?: Record<string, unknown>[]; edges?: Record<string, unknown>[] }>("/v1/network/graph")
+      .then((res: { data: { nodes?: Record<string, unknown>[]; edges?: Record<string, unknown>[] } }) => {
+        const rawNodes = res.data.nodes || [];
+        const rawEdges = res.data.edges || [];
+
+        const formattedNodes: NodePoint[] = rawNodes.map((n: Record<string, unknown>) => ({
+          id: String(n.id || n.node_id || ""),
+          name: String(n.name || n.label || n.id || n.node_id || "Node"),
+          lat: Number(n.lat ?? n.latitude ?? (n.coordinates as number[])?.[1] ?? 0),
+          lng: Number(n.lng ?? n.lon ?? n.longitude ?? (n.coordinates as number[])?.[0] ?? 0),
+          status: mapNodeStatus(n.status),
+          capacity: typeof n.capacity === "number" ? n.capacity : undefined,
+        }));
 
         const formattedRoutes: RouteLink[] = rawEdges.map((e: Record<string, unknown>, i: number) => ({
           id: String(e.id || `route-${i}`),
           from: String(e.from || e.source || e.from_node || ""),
           to: String(e.to || e.target || e.to_node || ""),
-          status: (e.status as any) || "active",
+          status: mapEdgeStatus(e.status),
+          carrier: e.carrier ? String(e.carrier) : undefined,
         }));
 
         setGraphData({ nodes: formattedNodes, edges: formattedRoutes });
-      }
-      if (dRes.ok) {
-        const dData = await dRes.json();
-        const list: DisruptionEvent[] = dData.disruptions || [];
+      })
+      .catch((err: Error) => setGraphError(err?.message || "Graph topology unreachable"))
+      .finally(() => setLoadingGraph(false));
+
+    const fetchDisruptions = api
+      .get<{ disruptions: DisruptionEvent[] }>("/v1/disruptions?status=active")
+      .then((res: { data: { disruptions: DisruptionEvent[] } }) => {
+        const list = res.data.disruptions || [];
         setDisruptions(list);
         if (list.length > 0 && !selectedIdRef.current) {
           setSelectedDisruptionId(list[0].id);
         }
-      }
-    } catch {
-      setErrorToast("Offline: cannot reach the backend service on 127.0.0.1:8000.");
-    }
-  }, []);
+      })
+      .catch(() => {
+        setErrorToast("Offline: cannot reach the backend service on 127.0.0.1:8000.");
+      });
+
+    await Promise.allSettled([fetchHealth, fetchGraph, fetchDisruptions]);
+  }, [router]);
 
   useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!token) {
+      router.push("/");
+      return;
+    }
+
     loadBaseData();
-    const sse = new EventSource(`${API_BASE}/v1/events/stream`);
+    const streamUrl = `${API_BASE}/v1/events/stream?token=${encodeURIComponent(token)}`;
+    const sse = new EventSource(streamUrl);
 
     const resetHeartbeat = () => {
       setStreamActive(true);
@@ -225,11 +245,9 @@ export default function OperationsPage() {
         const payload = JSON.parse(e.data);
         const event: DisruptionEvent = payload.data;
         setDisruptions((prev) => [event, ...prev.filter((d) => d.id !== event.id)]);
-        fetch(`${API_BASE}/v1/network/health`).then((r) => {
-          if (r.ok) r.json().then(setHealth);
-        });
+        api.get<NetworkHealth>("/v1/network/health").then((r: { data: NetworkHealth }) => setHealth(r.data));
       } catch {
-        /* malformed event payload — ignore */
+        /* malformed event payload */
       }
     });
 
@@ -240,7 +258,7 @@ export default function OperationsPage() {
         setActivePlan((prev) => (prev?.disruption_id === payload.data.disruption_id ? null : prev));
         loadBaseData();
       } catch {
-        /* malformed event payload — ignore */
+        /* malformed event payload */
       }
     });
 
@@ -250,11 +268,9 @@ export default function OperationsPage() {
         const payload = JSON.parse(e.data);
         const event: DisruptionEvent = payload.data;
         setDisruptions((prev) => prev.filter((d) => d.id !== event.id));
-        fetch(`${API_BASE}/v1/network/health`).then((r) => {
-          if (r.ok) r.json().then(setHealth);
-        });
+        api.get<NetworkHealth>("/v1/network/health").then((r: { data: NetworkHealth }) => setHealth(r.data));
       } catch {
-        /* malformed event payload — ignore */
+        /* malformed event payload */
       }
     });
 
@@ -264,7 +280,7 @@ export default function OperationsPage() {
       sse.close();
       if (heartbeatTimer.current) clearTimeout(heartbeatTimer.current);
     };
-  }, [loadBaseData]);
+  }, [loadBaseData, router]);
 
   const handleIngest = async (queryText: string) => {
     if (!queryText.trim() || queryText.length < 3) return;
@@ -272,33 +288,35 @@ export default function OperationsPage() {
     setErrorToast(null);
 
     try {
-      const headers = await getHeaders();
-      const res = await fetch(`${API_BASE}/v1/disruptions/ingest`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ raw_text: queryText.trim() }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Disruption ingestion failed.");
+      const res = await api.post("/v1/disruptions/ingest", { raw_text: queryText.trim() });
+      const data = res.data;
 
       setAlertInput("");
       loadBaseData();
 
       if (data.awaiting_approval) {
         setSelectedDisruptionId(data.disruption_id);
+        const alts: RouteAlternative[] = (data.decision?.alternatives || []).map((a: Partial<RouteAlternative>) => ({
+          ...a,
+          feasibility: normalizeFeasibility(a),
+        }));
+
         setActivePlan({
           thread_id: data.thread_id,
           disruption_id: data.disruption_id,
           status: "awaiting_approval",
           awaiting_approval: true,
           narrative: data.narrative,
-          decision: data.decision,
+          decision: data.decision ? { ...data.decision, alternatives: alts } : null,
         });
         setSelectedRouteIdx(0);
       }
-    } catch (err) {
-      setErrorToast(err instanceof Error ? err.message : "Execution failed.");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ||
+        (err as { message?: string })?.message ||
+        "Disruption ingestion failed.";
+      setErrorToast(msg);
     } finally {
       setLoadingIngest(false);
     }
@@ -310,13 +328,19 @@ export default function OperationsPage() {
     let state: AgentState | null = null;
 
     try {
-      const res = await fetch(`${API_BASE}/v1/disruptions/${id}/state`);
-      if (res.ok) state = await res.json();
+      const res = await api.get<AgentState>(`/v1/disruptions/${id}/state`);
+      state = res.data;
     } catch {
-      /* no agent state for this disruption — fall back to a local view */
+      /* fall back to local presentation */
     }
 
     if (state) {
+      if (state.decision?.alternatives) {
+        state.decision.alternatives = state.decision.alternatives.map((a) => ({
+          ...a,
+          feasibility: normalizeFeasibility(a),
+        }));
+      }
       setActivePlan(state);
       setSelectedRouteIdx(0);
     } else {
@@ -338,29 +362,25 @@ export default function OperationsPage() {
     setErrorToast(null);
 
     try {
-      const headers = await getHeaders();
       const payload: { approved: boolean; feedback?: string } = { approved };
       if (feedback.trim()) payload.feedback = feedback.trim();
 
-      const res = await fetch(`${API_BASE}/v1/disruptions/${activePlan.disruption_id}/approve`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
+      const res = await api.post(`/v1/disruptions/${activePlan.disruption_id}/approve`, payload);
       if (res.status === 503) {
         setErrorToast("Plan written to SAP memory. Archive timed out, safe to recheck.");
         setActionLoading(false);
         return;
       }
-      if (!res.ok) throw new Error(data.detail || "Mitigation action rejected.");
 
       setFeedback("");
       setActivePlan(null);
       loadBaseData();
-    } catch (err) {
-      setErrorToast(err instanceof Error ? err.message : "Mitigation action rejected.");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ||
+        (err as { message?: string })?.message ||
+        "Mitigation action rejected.";
+      setErrorToast(msg);
     } finally {
       setActionLoading(false);
     }
@@ -436,23 +456,24 @@ export default function OperationsPage() {
           </Link>
         </div>
 
-        {/* Metrics */}
+        {/* Metrics & Telemetry status */}
         <div
           className="grid grid-cols-3 border-b divide-x shrink-0"
           style={{ borderColor: "var(--color-border)" }}
         >
           <div className="p-3" style={{ borderColor: "var(--color-border)" }}>
-            <div className="text-[9px] uppercase tracking-wider font-mono" style={textMuted}>
-              Total Nodes
+            <div className="text-[9px] uppercase tracking-wider font-mono flex items-center justify-between" style={textMuted}>
+              <span>Total Nodes</span>
+              {loadingGraph && <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
             </div>
             <div
               className="text-base font-bold font-mono mt-0.5 flex items-center gap-1.5 tabular-nums"
               style={textMain}
             >
-              {health?.node_count ?? graphData.nodes.length}
+              {graphError ? "—" : health?.node_count ?? graphData.nodes.length}
               <span
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--color-success)" }}
+                style={{ background: graphError ? "var(--color-danger)" : "var(--color-success)" }}
                 aria-hidden="true"
               />
             </div>
@@ -469,20 +490,25 @@ export default function OperationsPage() {
             </div>
           </div>
           <div className="p-3" style={{ borderColor: "var(--color-border)" }}>
-            <div className="text-[9px] uppercase tracking-wider font-mono" style={textMuted}>
-              SAP Status
+            <div className="text-[9px] uppercase tracking-wider font-mono flex items-center justify-between" style={textMuted}>
+              <span>SAP Status</span>
+              {loadingHealth && <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
             </div>
             <div
               className="text-[11px] font-bold font-mono mt-1 flex items-center gap-1"
-              style={{ color: health?.sap?.connected === false ? "var(--color-warning)" : "var(--color-success)" }}
+              style={{
+                color: healthError || health?.sap?.connected === false
+                  ? "var(--color-warning)"
+                  : "var(--color-success)",
+              }}
             >
               <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
-              {health?.sap?.connected === false ? "Degraded" : "Online"}
+              {healthError ? "Offline" : health?.sap?.connected === false ? "Degraded" : "Online"}
             </div>
           </div>
         </div>
 
-        {/* Ingest */}
+        {/* Disruption Ingestion */}
         <div className="p-4 border-b shrink-0" style={{ borderColor: "var(--color-border)" }}>
           <div className="flex items-center justify-between mb-2">
             <h2
@@ -556,7 +582,7 @@ export default function OperationsPage() {
           </div>
         </div>
 
-        {/* Tabs + filter */}
+        {/* Tabs & Filter */}
         <div
           className="px-4 pt-3 pb-2 border-b flex items-center justify-between gap-3 shrink-0"
           style={{ borderColor: "var(--color-border)" }}
@@ -613,7 +639,7 @@ export default function OperationsPage() {
           </div>
         </div>
 
-        {/* List */}
+        {/* Feed List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5 min-h-0">
           {activeTab === "incidents" &&
             (filteredIncidents.length === 0 ? (
@@ -686,7 +712,11 @@ export default function OperationsPage() {
             ))}
 
           {activeTab === "nodes" &&
-            (filteredNodes.length === 0 ? (
+            (graphError ? (
+              <p className="text-center py-12 text-xs font-mono" style={{ color: "var(--color-danger)" }}>
+                Failed to load nodes: {graphError}
+              </p>
+            ) : filteredNodes.length === 0 ? (
               <p className="text-center py-12 text-xs" style={textMuted}>
                 No nodes match this filter.
               </p>
@@ -748,7 +778,7 @@ export default function OperationsPage() {
         </div>
       </section>
 
-      {/* Globe + mitigation dock */}
+      {/* Globe + Mitigation Matrix */}
       <section className="flex-1 relative flex flex-col min-w-0 min-h-0">
         {errorToast && (
           <div
@@ -773,7 +803,7 @@ export default function OperationsPage() {
         )}
 
         <div className="flex-1 w-full relative min-h-[320px]">
-          <Network3D nodes={graphData.nodes as any} routes={graphData.edges as any} darkMode={true} />
+          <Network3D nodes={graphData.nodes} routes={graphData.edges} darkMode={true} />
 
           <div
             className="absolute top-4 right-4 p-3 rounded-xl glass text-[10px] space-y-1.5 pointer-events-none font-mono z-10"
@@ -934,6 +964,12 @@ export default function OperationsPage() {
                                         color: "var(--color-success)",
                                         background: "color-mix(in srgb, var(--color-success) 12%, transparent)",
                                         borderColor: "color-mix(in srgb, var(--color-success) 35%, transparent)",
+                                      }
+                                    : alt.feasibility === "BLOCKED"
+                                    ? {
+                                        color: "var(--color-danger)",
+                                        background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+                                        borderColor: "color-mix(in srgb, var(--color-danger) 35%, transparent)",
                                       }
                                     : { ...surfaceInset, ...textMuted }
                                 }
