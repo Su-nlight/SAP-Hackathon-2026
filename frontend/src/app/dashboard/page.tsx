@@ -14,6 +14,7 @@ import {
   Flame,
 } from "lucide-react";
 
+import { getNetworkHealth, getNetworkGraph } from "@/lib/api";
 import type { NodePoint, RouteLink } from "@/components/Network3D";
 import type { ChaosScenario } from "@/components/ChaosSimulator";
 import CustomerView from "@/components/Roles/CustomerView";
@@ -22,7 +23,7 @@ import { useTheme } from "@/context/ThemeContext";
 
 const Network3D = dynamic(() => import("@/components/Network3D"), { ssr: false });
 const ChaosSimulator = dynamic(
-  () => import("@/components/ChaosSimulator").then((mod) => mod.default),
+  () => import("@/components/ChaosSimulator").then((m) => m.default),
   { ssr: false }
 );
 
@@ -100,6 +101,7 @@ export default function DashboardOverviewPage() {
   const [nodes, setNodes] = useState<NodePoint[]>(INITIAL_NODES);
   const [routes, setRoutes] = useState<RouteLink[]>(INITIAL_ROUTES);
   const [selectedNode, setSelectedNode] = useState<NodePoint | null>(INITIAL_NODES[1]);
+  const [flowPct, setFlowPct] = useState<string>("94.2");
   const [isHealing, setIsHealing] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isChaosOpen, setIsChaosOpen] = useState(false);
@@ -113,14 +115,52 @@ export default function DashboardOverviewPage() {
   useEffect(() => {
     if (role === "Operations") {
       router.push("/operations");
+      return;
     }
+
+    Promise.all([
+      getNetworkHealth().catch(() => null),
+      getNetworkGraph().catch(() => null),
+    ]).then(([h, g]) => {
+      if (h) {
+        const val = (h as any).network_reliability_pct ?? (h as any).health_score ?? (h as any).score;
+        if (val !== undefined) setFlowPct(String(val));
+      }
+
+      if (g && Array.isArray((g as any).nodes) && (g as any).nodes.length > 0) {
+        const mappedNodes: NodePoint[] = (g as any).nodes.map((n: any) => ({
+          id: n.id || n.code || n.name,
+          name: n.name || n.id,
+          city: n.city || n.id,
+          lat: Number(n.lat),
+          lng: Number(n.lng ?? n.lon ?? 0),
+          status: (n.status || "active").toLowerCase(),
+          capacity: typeof n.capacity === "number" ? n.capacity : 0.85,
+        }));
+        setNodes(mappedNodes);
+        setSelectedNode(mappedNodes[0] || null);
+
+        if (Array.isArray((g as any).edges)) {
+          const mappedRoutes: RouteLink[] = (g as any).edges.map((e: any) => ({
+            from: e.from ?? e.source,
+            to: e.to ?? e.target,
+            status: (e.status || "active").toLowerCase(),
+          }));
+          setRoutes(mappedRoutes);
+        }
+      }
+    });
   }, [role, router]);
 
   function handleInjectScenario(scn: ChaosScenario) {
     setIsChaosOpen(false);
-    setNodes((prev) => prev.map((n) => (n.id === scn.targetNodeId ? { ...n, status: "disrupted", capacity: 0.12 } : n)));
+    setNodes((prev) =>
+      prev.map((n) => (n.id === scn.targetNodeId ? { ...n, status: "disrupted", capacity: 0.12 } : n))
+    );
     setRoutes((prev) =>
-      prev.map((r) => (r.from === scn.blockedRoute[0] && r.to === scn.blockedRoute[1] ? { ...r, status: "blocked" } : r))
+      prev.map((r) =>
+        r.from === scn.blockedRoute[0] && r.to === scn.blockedRoute[1] ? { ...r, status: "blocked" } : r
+      )
     );
     setSelectedNode(nodes.find((n) => n.id === scn.targetNodeId) || null);
     setMessages((prev) => [
@@ -135,7 +175,9 @@ export default function DashboardOverviewPage() {
   function handleHealAction() {
     setIsHealing(true);
     setTimeout(() => {
-      setNodes((prev) => prev.map((n) => (selectedNode && n.id === selectedNode.id ? { ...n, status: "active", capacity: 0.94 } : n)));
+      setNodes((prev) =>
+        prev.map((n) => (selectedNode && n.id === selectedNode.id ? { ...n, status: "active", capacity: 0.94 } : n))
+      );
       setRoutes((prev) => prev.map((r) => (r.status === "blocked" ? { ...r, status: "active" } : r)));
       setMessages((prev) => [
         ...prev,
@@ -202,12 +244,12 @@ export default function DashboardOverviewPage() {
           <div className="flex items-center gap-1.5" style={textMuted}>
             <Globe2 className="w-4 h-4" style={primary} aria-hidden="true" />
             <span>Nodes:</span>
-            <strong style={textMain}>10 Monitored</strong>
+            <strong style={textMain}>{nodes.length} Monitored</strong>
           </div>
           <div className="flex items-center gap-1.5" style={textMuted}>
             <Activity className="w-4 h-4" style={{ color: "var(--color-success)" }} aria-hidden="true" />
             <span>Flow:</span>
-            <strong style={{ color: "var(--color-success)" }}>94.2%</strong>
+            <strong style={{ color: "var(--color-success)" }}>{flowPct}%</strong>
           </div>
         </div>
       </div>
