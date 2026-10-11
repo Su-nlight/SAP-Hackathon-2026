@@ -230,3 +230,26 @@ export async function runScenario(scenario_id: string) {
 }
 
 export default api;
+
+/* ---------------- Chatbot ---------------- */
+
+export interface ChatMessageDTO {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export interface ChatRequestDTO {
+  message: string;
+  history?: ChatMessageDTO[];
+}
+
+export interface ChatResponseDTO {
+  answer?: string;
+  response?: string;
+  message?: string;
+}
+
+export async function sendChatMessage(payload: ChatRequestDTO): Promise<ChatResponseDTO> {
+  const { data } = await api.post<ChatResponseDTO>("/v1/chat", payload);
+  return data;
+}

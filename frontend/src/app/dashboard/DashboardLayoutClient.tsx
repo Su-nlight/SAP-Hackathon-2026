@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Layers, ChevronRight, Radio, Lock } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -23,10 +23,43 @@ function isRole(value: string | null): value is Role {
 
 export default function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
   const { isDark } = useTheme();
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const initialRole = searchParams.get("role");
-  const [role, setRole] = useState<Role>(isRole(initialRole) ? initialRole : "Manager");
+
+  const [role, setRole] = useState<Role>(
+    pathname.startsWith("/operations")
+      ? "Operations"
+      : isRole(initialRole)
+      ? initialRole
+      : "Manager"
+  );
+
+  useEffect(() => {
+    if (pathname.startsWith("/operations")) {
+      setRole("Operations");
+    } else {
+      const currentRoleParam = searchParams.get("role");
+      if (isRole(currentRoleParam)) {
+        setRole(currentRoleParam);
+      } else if (pathname.startsWith("/dashboard")) {
+        setRole("Manager");
+      }
+    }
+  }, [pathname, searchParams]);
+
+  const handleRoleChange = (selectedRole: Role) => {
+    setRole(selectedRole);
+
+    if (selectedRole === "Operations") {
+      router.push("/operations");
+    } else if (selectedRole === "Manager") {
+      router.push("/dashboard");
+    } else {
+      router.push(`/dashboard?role=${selectedRole}`);
+    }
+  };
 
   return (
     <div
@@ -71,7 +104,8 @@ export default function DashboardLayoutClient({ children }: { children: React.Re
             {VALID_ROLES.map((r) => (
               <button
                 key={r}
-                onClick={() => setRole(r)}
+                type="button"
+                onClick={() => handleRoleChange(r)}
                 className="text-[11px] py-1.5 rounded-lg font-bold transition"
                 style={
                   role === r

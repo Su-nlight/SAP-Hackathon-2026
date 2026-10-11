@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   RefreshCw,
@@ -16,7 +16,6 @@ import {
 
 import type { NodePoint, RouteLink } from "@/components/Network3D";
 import type { ChaosScenario } from "@/components/ChaosSimulator";
-import OperationsView from "@/components/Roles/OperationsView";
 import CustomerView from "@/components/Roles/CustomerView";
 import AdminView from "@/components/Roles/AdminView";
 import { useTheme } from "@/context/ThemeContext";
@@ -93,6 +92,7 @@ const VALID_ROLES = ["Manager", "Operations", "Customer", "Admin"];
 
 export default function DashboardOverviewPage() {
   const { isDark } = useTheme();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const roleParam = searchParams.get("role");
   const role = VALID_ROLES.includes(roleParam || "") ? (roleParam as string) : "Manager";
@@ -109,6 +109,12 @@ export default function DashboardOverviewPage() {
       text: "⚡ CRITICAL DISRUPTION DETECTED: 48-hr crane operator walkout at Rotterdam (RTM). Suggested deterministic mitigation: Multi-modal reroute via Frankfurt rail spine.",
     },
   ]);
+
+  useEffect(() => {
+    if (role === "Operations") {
+      router.push("/operations");
+    }
+  }, [role, router]);
 
   function handleInjectScenario(scn: ChaosScenario) {
     setIsChaosOpen(false);
@@ -153,7 +159,7 @@ export default function DashboardOverviewPage() {
     }, 550);
   }
 
-  if (role === "Operations") return <OperationsView />;
+  if (role === "Operations") return null;
   if (role === "Customer") return <CustomerView />;
   if (role === "Admin") return <AdminView />;
 
