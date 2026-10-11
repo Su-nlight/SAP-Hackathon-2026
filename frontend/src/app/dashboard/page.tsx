@@ -27,34 +27,6 @@ const ChaosSimulator = dynamic(
   { ssr: false }
 );
 
-const INITIAL_NODES: NodePoint[] = [
-  { id: "FRA", name: "Frankfurt Multimodal Hub", city: "FRA", lat: 50.11, lng: 8.68, status: "active", capacity: 0.95 },
-  { id: "RTM", name: "Rotterdam Marine Port", city: "RTM", lat: 51.92, lng: 4.47, status: "disrupted", capacity: 0.15 },
-  { id: "SIN", name: "Singapore Mega Terminal", city: "SIN", lat: 1.35, lng: 103.81, status: "active", capacity: 0.92 },
-  { id: "PVG", name: "Shanghai Freight Centre", city: "PVG", lat: 31.23, lng: 121.47, status: "degraded", capacity: 0.58 },
-  { id: "JFK", name: "New York Port Gateway", city: "JFK", lat: 40.71, lng: -74.0, status: "active", capacity: 0.88 },
-  { id: "BOM", name: "Mumbai JNPT Port", city: "BOM", lat: 19.07, lng: 72.87, status: "active", capacity: 0.82 },
-  { id: "DXB", name: "Dubai Logistics Hub", city: "DXB", lat: 25.27, lng: 55.29, status: "active", capacity: 0.94 },
-  { id: "HND", name: "Tokyo Terminal", city: "HND", lat: 35.54, lng: 139.77, status: "active", capacity: 0.91 },
-  { id: "SSZ", name: "Santos Port", city: "SSZ", lat: -23.96, lng: -46.33, status: "active", capacity: 0.79 },
-  { id: "LAX", name: "Los Angeles Gateway", city: "LAX", lat: 33.74, lng: -118.27, status: "active", capacity: 0.86 },
-];
-
-const INITIAL_ROUTES: RouteLink[] = [
-  { from: "FRA", to: "RTM", status: "blocked" },
-  { from: "RTM", to: "JFK", status: "blocked" },
-  { from: "FRA", to: "JFK", status: "active" },
-  { from: "SIN", to: "PVG", status: "congested" },
-  { from: "BOM", to: "DXB", status: "active" },
-  { from: "DXB", to: "FRA", status: "active" },
-  { from: "SIN", to: "BOM", status: "active" },
-  { from: "PVG", to: "HND", status: "active" },
-  { from: "HND", to: "LAX", status: "active" },
-  { from: "JFK", to: "SSZ", status: "active" },
-  { from: "LAX", to: "JFK", status: "active" },
-  { from: "SSZ", to: "FRA", status: "active" },
-];
-
 const SHIPMENT_FEED = [
   { id: "PO-88219", origin: "Rotterdam", dest: "New York", mat: "Semiconductor Wafers", carrier: "Hapag-Lloyd", status: "CRITICAL HOLD", delay: "+48h" },
   { id: "PO-90142", origin: "Frankfurt", dest: "New York", mat: "Automotive ECU Modules", carrier: "Lufthansa Cargo", status: "NOMINAL", delay: "0h" },
@@ -98,17 +70,17 @@ export default function DashboardOverviewPage() {
   const roleParam = searchParams.get("role");
   const role = VALID_ROLES.includes(roleParam || "") ? (roleParam as string) : "Manager";
 
-  const [nodes, setNodes] = useState<NodePoint[]>(INITIAL_NODES);
-  const [routes, setRoutes] = useState<RouteLink[]>(INITIAL_ROUTES);
-  const [selectedNode, setSelectedNode] = useState<NodePoint | null>(INITIAL_NODES[1]);
-  const [flowPct, setFlowPct] = useState<string>("94.2");
+  const [nodes, setNodes] = useState<NodePoint[]>([]);
+  const [routes, setRoutes] = useState<RouteLink[]>([]);
+  const [selectedNode, setSelectedNode] = useState<NodePoint | null>(null);
+  const [flowPct, setFlowPct] = useState<string>("0");
   const [isHealing, setIsHealing] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isChaosOpen, setIsChaosOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
       role: "agent",
-      text: "⚡ CRITICAL DISRUPTION DETECTED: 48-hr crane operator walkout at Rotterdam (RTM). Suggested deterministic mitigation: Multi-modal reroute via Frankfurt rail spine.",
+      text: "⚡ Network monitoring active. Standing by for telemetry and autonomous routing updates.",
     },
   ]);
 

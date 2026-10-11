@@ -197,7 +197,7 @@ function CameraRig({ targetPos }: { targetPos: [number, number, number] }) {
     const elapsed = state.clock.elapsedTime - startedAt.current;
     const duration = 2.2;
     if (elapsed < duration) {
-      const t = 1 - Math.pow(1 - elapsed / duration, 3); // ease-out cubic
+      const t = 1 - Math.pow(1 - elapsed / duration, 3);
       camera.position.lerpVectors(from.current, to.current, t);
       camera.lookAt(0, 0, 0);
     }
@@ -227,8 +227,8 @@ function DigitalGlobe({
   const radius = 2.5;
 
   useFrame((_, delta) => {
-    if (globeRef.current && !selectedNode) {
-      globeRef.current.rotation.y += delta * 0.05;
+    if (globeRef.current) {
+      globeRef.current.rotation.y += delta * 0.12;
     }
   });
 
@@ -401,7 +401,7 @@ export default function Network3D({
 
   return (
     <div
-       className={`w-full h-full relative overflow-hidden rounded-2xl transition-colors duration-300 ${
+      className={`w-full h-full relative overflow-hidden rounded-2xl transition-colors duration-300 ${
         darkMode ? "bg-[#0b1528]" : "bg-[#edf4fb]"
       }`}
     >
@@ -424,7 +424,14 @@ export default function Network3D({
           isDark={darkMode}
         />
 
-        <OrbitControls enablePan={false} minDistance={3.5} maxDistance={9} rotateSpeed={0.6} />
+        <OrbitControls
+          enablePan={false}
+          minDistance={3.5}
+          maxDistance={9}
+          rotateSpeed={0.6}
+          autoRotate={true}
+          autoRotateSpeed={0.9}
+        />
 
         <EffectComposer>
           <Bloom
