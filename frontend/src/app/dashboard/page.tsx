@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   RefreshCw,
@@ -14,46 +14,18 @@ import {
   Flame,
 } from "lucide-react";
 
+import { getNetworkHealth, getNetworkGraph } from "@/lib/api";
 import type { NodePoint, RouteLink } from "@/components/Network3D";
 import type { ChaosScenario } from "@/components/ChaosSimulator";
-import OperationsView from "@/components/Roles/OperationsView";
 import CustomerView from "@/components/Roles/CustomerView";
 import AdminView from "@/components/Roles/AdminView";
 import { useTheme } from "@/context/ThemeContext";
 
 const Network3D = dynamic(() => import("@/components/Network3D"), { ssr: false });
 const ChaosSimulator = dynamic(
-  () => import("@/components/ChaosSimulator").then((mod) => mod.default),
+  () => import("@/components/ChaosSimulator").then((m) => m.default),
   { ssr: false }
 );
-
-const INITIAL_NODES: NodePoint[] = [
-  { id: "FRA", name: "Frankfurt Multimodal Hub", city: "FRA", lat: 50.11, lng: 8.68, status: "active", capacity: 0.95 },
-  { id: "RTM", name: "Rotterdam Marine Port", city: "RTM", lat: 51.92, lng: 4.47, status: "disrupted", capacity: 0.15 },
-  { id: "SIN", name: "Singapore Mega Terminal", city: "SIN", lat: 1.35, lng: 103.81, status: "active", capacity: 0.92 },
-  { id: "PVG", name: "Shanghai Freight Centre", city: "PVG", lat: 31.23, lng: 121.47, status: "degraded", capacity: 0.58 },
-  { id: "JFK", name: "New York Port Gateway", city: "JFK", lat: 40.71, lng: -74.0, status: "active", capacity: 0.88 },
-  { id: "BOM", name: "Mumbai JNPT Port", city: "BOM", lat: 19.07, lng: 72.87, status: "active", capacity: 0.82 },
-  { id: "DXB", name: "Dubai Logistics Hub", city: "DXB", lat: 25.27, lng: 55.29, status: "active", capacity: 0.94 },
-  { id: "HND", name: "Tokyo Terminal", city: "HND", lat: 35.54, lng: 139.77, status: "active", capacity: 0.91 },
-  { id: "SSZ", name: "Santos Port", city: "SSZ", lat: -23.96, lng: -46.33, status: "active", capacity: 0.79 },
-  { id: "LAX", name: "Los Angeles Gateway", city: "LAX", lat: 33.74, lng: -118.27, status: "active", capacity: 0.86 },
-];
-
-const INITIAL_ROUTES: RouteLink[] = [
-  { from: "FRA", to: "RTM", status: "blocked" },
-  { from: "RTM", to: "JFK", status: "blocked" },
-  { from: "FRA", to: "JFK", status: "active" },
-  { from: "SIN", to: "PVG", status: "congested" },
-  { from: "BOM", to: "DXB", status: "active" },
-  { from: "DXB", to: "FRA", status: "active" },
-  { from: "SIN", to: "BOM", status: "active" },
-  { from: "PVG", to: "HND", status: "active" },
-  { from: "HND", to: "LAX", status: "active" },
-  { from: "JFK", to: "SSZ", status: "active" },
-  { from: "LAX", to: "JFK", status: "active" },
-  { from: "SSZ", to: "FRA", status: "active" },
-];
 
 const SHIPMENT_FEED = [
   { id: "PO-88219", origin: "Rotterdam", dest: "New York", mat: "Semiconductor Wafers", carrier: "Hapag-Lloyd", status: "CRITICAL HOLD", delay: "+48h" },
@@ -93,28 +65,74 @@ const VALID_ROLES = ["Manager", "Operations", "Customer", "Admin"];
 
 export default function DashboardOverviewPage() {
   const { isDark } = useTheme();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const roleParam = searchParams.get("role");
   const role = VALID_ROLES.includes(roleParam || "") ? (roleParam as string) : "Manager";
 
-  const [nodes, setNodes] = useState<NodePoint[]>(INITIAL_NODES);
-  const [routes, setRoutes] = useState<RouteLink[]>(INITIAL_ROUTES);
-  const [selectedNode, setSelectedNode] = useState<NodePoint | null>(INITIAL_NODES[1]);
+  const [nodes, setNodes] = useState<NodePoint[]>([]);
+  const [routes, setRoutes] = useState<RouteLink[]>([]);
+  const [selectedNode, setSelectedNode] = useState<NodePoint | null>(null);
+  const [flowPct, setFlowPct] = useState<string>("0");
   const [isHealing, setIsHealing] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isChaosOpen, setIsChaosOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
       role: "agent",
-      text: "⚡ CRITICAL DISRUPTION DETECTED: 48-hr crane operator walkout at Rotterdam (RTM). Suggested deterministic mitigation: Multi-modal reroute via Frankfurt rail spine.",
+      text: "⚡ Network monitoring active. Standing by for telemetry and autonomous routing updates.",
     },
   ]);
 
+  useEffect(() => {
+    if (role === "Operations") {
+      router.push("/operations");
+      return;
+    }
+
+    Promise.all([
+      getNetworkHealth().catch(() => null),
+      getNetworkGraph().catch(() => null),
+    ]).then(([h, g]) => {
+      if (h) {
+        const val = (h as any).network_reliability_pct ?? (h as any).health_score ?? (h as any).score;
+        if (val !== undefined) setFlowPct(String(val));
+      }
+
+      if (g && Array.isArray((g as any).nodes) && (g as any).nodes.length > 0) {
+        const mappedNodes: NodePoint[] = (g as any).nodes.map((n: any) => ({
+          id: n.id || n.code || n.name,
+          name: n.name || n.id,
+          city: n.city || n.id,
+          lat: Number(n.lat),
+          lng: Number(n.lng ?? n.lon ?? 0),
+          status: (n.status || "active").toLowerCase(),
+          capacity: typeof n.capacity === "number" ? n.capacity : 0.85,
+        }));
+        setNodes(mappedNodes);
+        setSelectedNode(mappedNodes[0] || null);
+
+        if (Array.isArray((g as any).edges)) {
+          const mappedRoutes: RouteLink[] = (g as any).edges.map((e: any) => ({
+            from: e.from ?? e.source,
+            to: e.to ?? e.target,
+            status: (e.status || "active").toLowerCase(),
+          }));
+          setRoutes(mappedRoutes);
+        }
+      }
+    });
+  }, [role, router]);
+
   function handleInjectScenario(scn: ChaosScenario) {
     setIsChaosOpen(false);
-    setNodes((prev) => prev.map((n) => (n.id === scn.targetNodeId ? { ...n, status: "disrupted", capacity: 0.12 } : n)));
+    setNodes((prev) =>
+      prev.map((n) => (n.id === scn.targetNodeId ? { ...n, status: "disrupted", capacity: 0.12 } : n))
+    );
     setRoutes((prev) =>
-      prev.map((r) => (r.from === scn.blockedRoute[0] && r.to === scn.blockedRoute[1] ? { ...r, status: "blocked" } : r))
+      prev.map((r) =>
+        r.from === scn.blockedRoute[0] && r.to === scn.blockedRoute[1] ? { ...r, status: "blocked" } : r
+      )
     );
     setSelectedNode(nodes.find((n) => n.id === scn.targetNodeId) || null);
     setMessages((prev) => [
@@ -129,7 +147,9 @@ export default function DashboardOverviewPage() {
   function handleHealAction() {
     setIsHealing(true);
     setTimeout(() => {
-      setNodes((prev) => prev.map((n) => (selectedNode && n.id === selectedNode.id ? { ...n, status: "active", capacity: 0.94 } : n)));
+      setNodes((prev) =>
+        prev.map((n) => (selectedNode && n.id === selectedNode.id ? { ...n, status: "active", capacity: 0.94 } : n))
+      );
       setRoutes((prev) => prev.map((r) => (r.status === "blocked" ? { ...r, status: "active" } : r)));
       setMessages((prev) => [
         ...prev,
@@ -153,7 +173,7 @@ export default function DashboardOverviewPage() {
     }, 550);
   }
 
-  if (role === "Operations") return <OperationsView />;
+  if (role === "Operations") return null;
   if (role === "Customer") return <CustomerView />;
   if (role === "Admin") return <AdminView />;
 
@@ -196,12 +216,12 @@ export default function DashboardOverviewPage() {
           <div className="flex items-center gap-1.5" style={textMuted}>
             <Globe2 className="w-4 h-4" style={primary} aria-hidden="true" />
             <span>Nodes:</span>
-            <strong style={textMain}>10 Monitored</strong>
+            <strong style={textMain}>{nodes.length} Monitored</strong>
           </div>
           <div className="flex items-center gap-1.5" style={textMuted}>
             <Activity className="w-4 h-4" style={{ color: "var(--color-success)" }} aria-hidden="true" />
             <span>Flow:</span>
-            <strong style={{ color: "var(--color-success)" }}>94.2%</strong>
+            <strong style={{ color: "var(--color-success)" }}>{flowPct}%</strong>
           </div>
         </div>
       </div>

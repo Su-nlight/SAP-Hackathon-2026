@@ -19,6 +19,7 @@ interface RoleCard {
   tag: string;
   desc: string;
   available: boolean;
+  href?: string;
 }
 
 const ROLE_CARDS: RoleCard[] = [
@@ -28,13 +29,15 @@ const ROLE_CARDS: RoleCard[] = [
     tag: "KPIs & Costs",
     desc: "Financial exposure, disruption impact, and high-stakes recovery decisions.",
     available: true,
+    href: "/dashboard?role=Manager",
   },
   {
     title: "Operations Controller",
     role: "Operations",
     tag: "Fleet & Routing",
     desc: "Live shipment tracking, route management, and network monitoring.",
-    available: false,
+    available: true,
+    href: "/operations",
   },
   {
     title: "Consignment Client",
@@ -42,6 +45,7 @@ const ROLE_CARDS: RoleCard[] = [
     tag: "Tracking",
     desc: "Shipment status, delivery updates, and live map tracking.",
     available: false,
+    href: "/dashboard?role=Customer",
   },
   {
     title: "SAP System Admin",
@@ -49,6 +53,7 @@ const ROLE_CARDS: RoleCard[] = [
     tag: "Integration",
     desc: "SAP system sync, integration monitoring, and audit log review.",
     available: false,
+    href: "/dashboard?role=Admin",
   },
 ];
 
@@ -120,7 +125,7 @@ export default function HubLaunchPage() {
             item.available ? (
               <Link
                 key={item.role}
-                href={`/dashboard?role=${item.role}`}
+                href={item.href || `/dashboard?role=${item.role}`}
                 className="group relative p-5 rounded-2xl glass-card transition-all duration-200 hover:-translate-y-1 flex flex-col justify-between"
               >
                 <RoleCardBody item={item} />

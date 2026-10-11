@@ -3,7 +3,7 @@
 /* =========================================================
    THEME TOKENS
    Light theme  -> Rose Gold palette
-   Dark theme   -> Deep Blue / Plum palette
+   Dark theme   -> Deep Blue / Teal / Cyan palette
    Applied via [data-theme="light"] / [data-theme="dark"] on <html>
    ========================================================= */
 
@@ -86,6 +86,7 @@
   --color-success: #4ade80;
   --color-warning: #e0a940;
   --color-info: #6c8ee0;
+
   /* --- glass --- */
   --glass-bg: rgba(19, 30, 92, 0.45);
   --glass-bg-strong: rgba(19, 30, 92, 0.65);
@@ -101,8 +102,8 @@
     ),
     radial-gradient(
       circle at 85% 15%,
-      color-mix(in srgb, var(--deep-blue) 55%, transparent) 0%,
-      transparent 50%
+      color-mix(in srgb, var(--midnight-blue) 90%, transparent) 0%,
+      transparent 55%
     ),
     radial-gradient(
       circle at 50% 90%,
@@ -170,7 +171,6 @@ body {
   overflow: hidden;
 }
 
-/* subtle top-edge highlight, a classic glassmorphism cue */
 .glass-card::before {
   content: "";
   position: absolute;
@@ -220,7 +220,6 @@ body {
   transform: scale(0.98);
 }
 
-/* floating gradient blobs used behind glass panels */
 .blob {
   position: absolute;
   border-radius: 9999px;
