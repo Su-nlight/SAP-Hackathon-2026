@@ -20,7 +20,20 @@ async def chat(
     identity: dict = Depends(get_current_identity),
     chat_service: DecisionChatService = Depends(get_decision_chat_service),
 ) -> dict:
+    print(identity)
+    if not isinstance(identity, dict):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing authentication identity",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     company_id = identity.get("company_id")
     if not company_id:
-        raise HTTPException(status_code=401, detail="Invalid token: missing company_id")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token: missing company_id",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return await chat_service.answer(company_id, body.message)
