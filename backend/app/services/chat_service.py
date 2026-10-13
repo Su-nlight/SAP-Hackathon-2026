@@ -4,18 +4,8 @@ from __future__ import annotations
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..ai.llm_registry import LLMRegistry
+from ..ai.prompts import CHAT_SYSTEM
 from .decision_archive_service import DecisionArchiveService
-
-CHAT_SYSTEM = """You are a decision-history assistant for a supply chain \
-self-healing system. You answer ONLY using the past-decision records \
-provided in the context below. Rules:
-1. If the context does not contain a decision relevant to the question, say \
-plainly "I don't have a record of a decision matching that" — never \
-invent or infer a decision that isn't in the context.
-2. Do not answer general supply-chain questions, give new recommendations, \
-or discuss anything outside the provided decision history.
-3. Always cite the disruption_id and date for any decision you reference.
-4. Be concise and factual."""
 
 
 class DecisionChatService:
