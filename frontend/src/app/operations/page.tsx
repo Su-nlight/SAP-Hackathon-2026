@@ -15,10 +15,23 @@ import {
   TrendingDown,
   X,
   Zap,
+  ArrowRight,
+  SlidersHorizontal,
+  CheckCircle2,
 } from "lucide-react";
-import api from "@/lib/api";
+import {
+  getNetworkHealth,
+  getNetworkGraph,
+  ingestDisruption,
+  getDisruptionState,
+  approveDisruptionPlan,
+  listDisruptions,
+  type NetworkHealthDTO,
+  type AgentState,
+} from "@/lib/api";
 import type { NodePoint, RouteLink } from "../../components/Network3D";
 
+/* PROTECTED 3D GLOBE COMPONENT */
 const Network3D = dynamic(() => import("../../components/Network3D"), {
   ssr: false,
   loading: () => (
@@ -30,20 +43,14 @@ const Network3D = dynamic(() => import("../../components/Network3D"), {
         className="h-6 w-6 rounded-full border-2 border-t-transparent animate-spin"
         style={{ borderColor: "var(--color-primary)", borderTopColor: "transparent" }}
       />
-      <span>Synchronizing topology engine…</span>
+      <span className="tracking-wider uppercase">Synchronizing topology engine…</span>
     </div>
   ),
 });
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-interface NetworkHealth {
-  node_count: number;
-  edge_count: number;
-  active_disruptions: number;
-  healthy: boolean;
-  sap?: { connected: boolean; provider: string; plants: number; customers: number };
-}
+type NetworkHealth = NetworkHealthDTO;
 
 interface DisruptionEvent {
   id: string;
@@ -67,22 +74,6 @@ interface RouteAlternative {
   feasibility: "OPTIMAL" | "FEASIBLE" | "HIGH_RISK" | "BLOCKED";
 }
 
-interface HealDecision {
-  action: string;
-  reason: string;
-  alternatives: RouteAlternative[];
-  affected_shipment_ids: string[];
-}
-
-interface AgentState {
-  thread_id: string;
-  disruption_id: string;
-  status: string;
-  awaiting_approval: boolean;
-  narrative?: string;
-  decision?: HealDecision | null;
-}
-
 const QUICK_ACTIONS = [
   { label: "Suez Canal Stoppage", query: "Suez Canal blocked by grounded container vessel" },
   { label: "Rotterdam Dock Strike", query: "Port strike halts all dock crane operations at Rotterdam" },
@@ -97,7 +88,8 @@ const surfaceInset = {
 };
 
 function severityStyle(severity: string) {
-  const tone = severity === "FULL" ? "danger" : "warning";
+  const isDanger = severity === "FULL" || severity === "CRITICAL";
+  const tone = isDanger ? "danger" : "warning";
   return {
     color: `var(--color-${tone})`,
     background: `color-mix(in srgb, var(--color-${tone}) 12%, transparent)`,
@@ -171,33 +163,29 @@ export default function OperationsPage() {
     setHealthError(null);
     setGraphError(null);
 
-    const fetchHealth = api
-      .get<NetworkHealth>("/v1/network/health")
-      .then((res: { data: NetworkHealth }) => setHealth(res.data))
+    const fetchHealth = getNetworkHealth()
+      .then((data: NetworkHealth) => setHealth(data))
       .catch((err: Error) => setHealthError(err?.message || "Health telemetry unreachable"))
       .finally(() => setLoadingHealth(false));
 
-    const fetchGraph = api
-      .get<{ nodes?: Record<string, unknown>[]; edges?: Record<string, unknown>[] }>("/v1/network/graph")
-      .then((res: { data: { nodes?: Record<string, unknown>[]; edges?: Record<string, unknown>[] } }) => {
-        const rawNodes = res.data.nodes || [];
-        const rawEdges = res.data.edges || [];
+    const fetchGraph = getNetworkGraph()
+      .then((data: any) => {
+        const rawNodes = data.nodes || [];
+        const rawEdges = data.edges || [];
 
-        const formattedNodes: NodePoint[] = rawNodes.map((n: Record<string, unknown>) => ({
-          id: String(n.id || n.node_id || ""),
-          name: String(n.name || n.label || n.id || n.node_id || "Node"),
-          lat: Number(n.lat ?? n.latitude ?? (n.coordinates as number[])?.[1] ?? 0),
-          lng: Number(n.lng ?? n.lon ?? n.longitude ?? (n.coordinates as number[])?.[0] ?? 0),
+        const formattedNodes: NodePoint[] = rawNodes.map((n: any) => ({
+          id: String(n.id || n.code || ""),
+          name: String(n.name || n.id || "Node"),
+          lat: Number(n.lat ?? 0),
+          lng: Number(n.lon ?? n.lng ?? 0),
           status: mapNodeStatus(n.status),
           capacity: typeof n.capacity === "number" ? n.capacity : undefined,
         }));
 
-        const formattedRoutes: RouteLink[] = rawEdges.map((e: Record<string, unknown>, i: number) => ({
-          id: String(e.id || `route-${i}`),
-          from: String(e.from || e.source || e.from_node || ""),
-          to: String(e.to || e.target || e.to_node || ""),
+        const formattedRoutes: RouteLink[] = rawEdges.map((e: any) => ({
+          from: String(e.source || e.from || ""),
+          to: String(e.target || e.to || ""),
           status: mapEdgeStatus(e.status),
-          carrier: e.carrier ? String(e.carrier) : undefined,
         }));
 
         setGraphData({ nodes: formattedNodes, edges: formattedRoutes });
@@ -205,11 +193,9 @@ export default function OperationsPage() {
       .catch((err: Error) => setGraphError(err?.message || "Graph topology unreachable"))
       .finally(() => setLoadingGraph(false));
 
-    const fetchDisruptions = api
-      .get<{ disruptions: DisruptionEvent[] }>("/v1/disruptions?status=active")
-      .then((res: { data: { disruptions: DisruptionEvent[] } }) => {
-        const list = res.data.disruptions || [];
-        setDisruptions(list);
+    const fetchDisruptions = listDisruptions("active")
+      .then((list) => {
+        setDisruptions(list as unknown as DisruptionEvent[]);
         if (list.length > 0 && !selectedIdRef.current) {
           setSelectedDisruptionId(list[0].id);
         }
@@ -245,7 +231,7 @@ export default function OperationsPage() {
         const payload = JSON.parse(e.data);
         const event: DisruptionEvent = payload.data;
         setDisruptions((prev) => [event, ...prev.filter((d) => d.id !== event.id)]);
-        api.get<NetworkHealth>("/v1/network/health").then((r: { data: NetworkHealth }) => setHealth(r.data));
+        getNetworkHealth().then((data) => setHealth(data)).catch(() => {});
       } catch {
         /* malformed event payload */
       }
@@ -268,7 +254,7 @@ export default function OperationsPage() {
         const payload = JSON.parse(e.data);
         const event: DisruptionEvent = payload.data;
         setDisruptions((prev) => prev.filter((d) => d.id !== event.id));
-        api.get<NetworkHealth>("/v1/network/health").then((r: { data: NetworkHealth }) => setHealth(r.data));
+        getNetworkHealth().then((data) => setHealth(data)).catch(() => {});
       } catch {
         /* malformed event payload */
       }
@@ -288,8 +274,7 @@ export default function OperationsPage() {
     setErrorToast(null);
 
     try {
-      const res = await api.post("/v1/disruptions/ingest", { raw_text: queryText.trim() });
-      const data = res.data;
+      const data = await ingestDisruption(queryText.trim());
 
       setAlertInput("");
       loadBaseData();
@@ -328,15 +313,14 @@ export default function OperationsPage() {
     let state: AgentState | null = null;
 
     try {
-      const res = await api.get<AgentState>(`/v1/disruptions/${id}/state`);
-      state = res.data;
+      state = await getDisruptionState(id);
     } catch {
       /* fall back to local presentation */
     }
 
     if (state) {
       if (state.decision?.alternatives) {
-        state.decision.alternatives = state.decision.alternatives.map((a) => ({
+        state.decision.alternatives = state.decision.alternatives.map((a: Record<string, any>) => ({
           ...a,
           feasibility: normalizeFeasibility(a),
         }));
@@ -365,7 +349,7 @@ export default function OperationsPage() {
       const payload: { approved: boolean; feedback?: string } = { approved };
       if (feedback.trim()) payload.feedback = feedback.trim();
 
-      const res = await api.post(`/v1/disruptions/${activePlan.disruption_id}/approve`, payload);
+      const res = await approveDisruptionPlan(activePlan.disruption_id, payload);
       if (res.status === 503) {
         setErrorToast("Plan written to SAP memory. Archive timed out, safe to recheck.");
         setActionLoading(false);
@@ -401,7 +385,7 @@ export default function OperationsPage() {
     return graphData.nodes.filter((n) => n.name.toLowerCase().includes(q) || n.id.toLowerCase().includes(q));
   }, [graphData.nodes, searchFilter]);
 
-  const selectedAlt = activePlan?.decision?.alternatives?.[selectedRouteIdx] || null;
+  const selectedAlt = (activePlan?.decision?.alternatives?.[selectedRouteIdx] as RouteAlternative | undefined) || null;
 
   return (
     <div
@@ -448,11 +432,11 @@ export default function OperationsPage() {
           </div>
 
           <Link
-            href="/hub"
+            href="/dashboard?role=Manager"
             className="text-[10px] font-mono font-semibold px-2.5 py-1 rounded-lg glass transition hover:opacity-80"
             style={textMuted}
           >
-            ← Hub
+            ← Manager
           </Link>
         </div>
 
@@ -547,7 +531,7 @@ export default function OperationsPage() {
             <button
               type="submit"
               disabled={loadingIngest || alertInput.trim().length < 3}
-              className="absolute right-1 px-3 py-1 btn-primary rounded-lg text-xs font-semibold flex items-center gap-1 disabled:opacity-40"
+              className="absolute right-1 px-3 py-1 btn-primary rounded-lg text-xs font-semibold flex items-center gap-1 disabled:opacity-40 cursor-pointer"
             >
               {loadingIngest ? (
                 <>
@@ -573,7 +557,7 @@ export default function OperationsPage() {
                 type="button"
                 onClick={() => handleIngest(q.query)}
                 disabled={loadingIngest}
-                className="text-[9px] font-mono px-2 py-0.5 rounded-lg border whitespace-nowrap transition hover:opacity-80 disabled:opacity-40"
+                className="text-[9px] font-mono px-2 py-0.5 rounded-lg border whitespace-nowrap transition hover:opacity-80 disabled:opacity-40 cursor-pointer"
                 style={{ ...surfaceInset, ...textMuted }}
               >
                 {q.label}
@@ -602,7 +586,7 @@ export default function OperationsPage() {
                 role="tab"
                 aria-selected={activeTab === key}
                 onClick={() => setActiveTab(key)}
-                className="px-3 py-1 text-[11px] font-bold rounded-md transition"
+                className="px-3 py-1 text-[11px] font-bold rounded-md transition cursor-pointer"
                 style={
                   activeTab === key
                     ? {
@@ -643,11 +627,14 @@ export default function OperationsPage() {
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5 min-h-0">
           {activeTab === "incidents" &&
             (filteredIncidents.length === 0 ? (
-              <p className="text-center py-12 text-xs" style={textMuted}>
-                {disruptions.length === 0
-                  ? "No active disruptions. The network is running nominally."
-                  : "No disruptions match this filter."}
-              </p>
+              <div className="text-center py-12 px-4 text-xs font-mono" style={textMuted}>
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-40 text-emerald-400" />
+                <p>
+                  {disruptions.length === 0
+                    ? "No active disruptions. The network is running nominally."
+                    : "No disruptions match this filter."}
+                </p>
+              </div>
             ) : (
               filteredIncidents.map((d) => {
                 const isSelected = selectedDisruptionId === d.id;
@@ -657,7 +644,7 @@ export default function OperationsPage() {
                     type="button"
                     onClick={() => inspectDisruption(d.id)}
                     aria-pressed={isSelected}
-                    className="w-full text-left p-3 rounded-xl border transition"
+                    className="w-full text-left p-3 rounded-xl border transition cursor-pointer"
                     style={
                       isSelected
                         ? {
@@ -778,7 +765,7 @@ export default function OperationsPage() {
         </div>
       </section>
 
-      {/* Globe + Mitigation Matrix */}
+      {/* Globe + Mitigation Matrix: EXACT ORIGINAL STRUCTURE */}
       <section className="flex-1 relative flex flex-col min-w-0 min-h-0">
         {errorToast && (
           <div
@@ -795,18 +782,20 @@ export default function OperationsPage() {
             <button
               onClick={() => setErrorToast(null)}
               aria-label="Dismiss error"
-              className="ml-2 shrink-0 transition hover:opacity-70"
+              className="ml-2 shrink-0 transition hover:opacity-70 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         )}
 
+        {/* Three.js Canvas Container */}
         <div className="flex-1 w-full relative min-h-[320px]">
           <Network3D nodes={graphData.nodes} routes={graphData.edges} darkMode={true} />
 
           <div
-            className="absolute top-4 right-4 p-3 rounded-xl glass text-[10px] space-y-1.5 pointer-events-none font-mono z-10"
+            className="absolute top-4 right-4 p-3 rounded-xl glass text-[10px] space-y-1.5 pointer-events-none font-mono z-10 border"
+            style={{ borderColor: "var(--color-border)" }}
             aria-hidden="true"
           >
             <div className="text-[9px] font-bold uppercase tracking-widest" style={textMuted}>
@@ -825,6 +814,7 @@ export default function OperationsPage() {
           </div>
         </div>
 
+        {/* Active Plan Bottom Sheet */}
         {activePlan && (
           <div
             className="border-t glass-strong flex flex-col xl:flex-row z-20 shrink-0 max-h-[60vh] xl:h-72 overflow-y-auto xl:overflow-visible"
@@ -839,9 +829,10 @@ export default function OperationsPage() {
               <div className="min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <h2
-                    className="text-[10px] font-bold font-mono tracking-widest uppercase"
+                    className="text-[10px] font-bold font-mono tracking-widest uppercase flex items-center gap-1.5"
                     style={{ color: "var(--color-primary)" }}
                   >
+                    <SlidersHorizontal className="w-3 h-3" />
                     Agent Reasoning
                   </h2>
                   <span
@@ -870,7 +861,7 @@ export default function OperationsPage() {
                   <button
                     onClick={() => handleApproval(false)}
                     disabled={actionLoading}
-                    className="flex-1 py-2 rounded-xl border text-xs font-semibold transition hover:opacity-80 disabled:opacity-50"
+                    className="flex-1 py-2 rounded-xl border text-xs font-semibold transition hover:opacity-80 disabled:opacity-50 cursor-pointer"
                     style={{
                       color: "var(--color-danger)",
                       background: "color-mix(in srgb, var(--color-danger) 10%, transparent)",
@@ -882,7 +873,7 @@ export default function OperationsPage() {
                   <button
                     onClick={() => handleApproval(true)}
                     disabled={actionLoading}
-                    className="flex-1 py-2 rounded-xl btn-primary text-xs font-semibold disabled:opacity-50"
+                    className="flex-1 py-2 rounded-xl btn-primary text-xs font-semibold disabled:opacity-50 cursor-pointer"
                   >
                     {actionLoading ? "Writing to SAP…" : "Approve & Apply"}
                   </button>
@@ -919,7 +910,7 @@ export default function OperationsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y" style={{ borderColor: "var(--color-border)" }}>
-                      {activePlan.decision?.alternatives?.map((alt, idx) => {
+                      {activePlan.decision?.alternatives?.map((alt: any, idx: number) => {
                         const isSel = selectedRouteIdx === idx;
                         return (
                           <tr
@@ -927,7 +918,7 @@ export default function OperationsPage() {
                             tabIndex={0}
                             role="button"
                             aria-pressed={isSel}
-                            aria-label={`Route ${alt.route_id} via ${alt.path.join(" to ")}`}
+                            aria-label={`Route ${alt.route_id} via ${(alt.path || []).join(" to ")}`}
                             onClick={() => setSelectedRouteIdx(idx)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
@@ -950,7 +941,7 @@ export default function OperationsPage() {
                               {alt.route_id}
                             </td>
                             <td className="py-2.5 text-[11px] truncate max-w-[16rem]" style={textMain}>
-                              {alt.path.join(" → ")}
+                              {(alt.path || []).join(" → ")}
                             </td>
                             <td className="py-2.5 tabular-nums">{alt.total_time_hours} hrs</td>
                             <td className="py-2.5 tabular-nums">${alt.total_cost_per_ton}</td>
@@ -1015,7 +1006,7 @@ export default function OperationsPage() {
                     {[
                       { icon: Clock, label: "Transit time", value: `${selectedAlt.total_time_hours} hrs`, color: "var(--color-primary)" },
                       { icon: TrendingDown, label: "Cost per ton", value: `$${selectedAlt.total_cost_per_ton}`, color: "var(--color-success)" },
-                      { icon: Activity, label: "Risk index", value: selectedAlt.total_risk.toFixed(2), color: "var(--color-warning)" },
+                      { icon: Activity, label: "Risk index", value: Number(selectedAlt.total_risk || 0).toFixed(2), color: "var(--color-warning)" },
                     ].map((row) => (
                       <div
                         key={row.label}
