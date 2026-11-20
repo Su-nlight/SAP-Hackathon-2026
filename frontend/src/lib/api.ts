@@ -71,7 +71,7 @@ export function logout() {
   }
 }
 
-/* ---------------- Disruptions ---------------- */
+/* ---------------- Disruptions & Agent State ---------------- */
 
 export interface DisruptionEventDTO {
   id: string;
@@ -91,6 +91,24 @@ export interface DisruptionEventDTO {
   manual_review: boolean;
 }
 
+export interface AgentDecision {
+  action?: string;
+  reason?: string;
+  recommended_route_id?: string;
+  rationale?: string;
+  alternatives?: Array<Record<string, any>>;
+  affected_shipment_ids?: string[];
+}
+
+export interface AgentState {
+  thread_id: string;
+  disruption_id: string;
+  status: string;
+  awaiting_approval: boolean;
+  narrative?: string;
+  decision?: AgentDecision | null;
+}
+
 export async function listDisruptions(status?: "active" | "resolved"): Promise<DisruptionEventDTO[]> {
   const { data } = await api.get<{ disruptions: DisruptionEventDTO[] }>("/v1/disruptions", {
     params: status ? { status } : {},
@@ -101,6 +119,23 @@ export async function listDisruptions(status?: "active" | "resolved"): Promise<D
 export async function ingestAlert(raw_text: string) {
   const { data } = await api.post("/v1/disruptions/ingest", { raw_text });
   return data;
+}
+
+export async function ingestDisruption(raw_text: string) {
+  const { data } = await api.post("/v1/disruptions/ingest", { raw_text });
+  return data;
+}
+
+export async function getDisruptionState(id: string): Promise<AgentState> {
+  const { data } = await api.get<AgentState>(`/v1/disruptions/${id}/state`);
+  return data;
+}
+
+export async function approveDisruptionPlan(
+  disruptionId: string,
+  payload: { approved: boolean; feedback?: string }
+) {
+  return await api.post(`/v1/disruptions/${disruptionId}/approve`, payload);
 }
 
 export async function approveDisruption(eventId: string, feedback?: string) {
@@ -125,7 +160,8 @@ export interface NetworkNodeDTO {
   lat: number;
   lon: number;
   status: string;
-  metadata: Record<string, unknown>;
+  capacity?: number;
+  metadata?: Record<string, unknown>;
 }
 
 export interface NetworkEdgeDTO {
@@ -134,6 +170,7 @@ export interface NetworkEdgeDTO {
   target: string;
   mode: string;
   status?: string;
+  carrier?: string;
 }
 
 export async function getNetworkGraph(): Promise<{
@@ -145,14 +182,17 @@ export async function getNetworkGraph(): Promise<{
 }
 
 export interface NetworkHealthDTO {
-  node_count: number;
-  edge_count: number;
-  active_disruptions: number;
-  disruption_ids: string[];
-  offline_nodes: string[];
-  offline_edges: string[];
-  healthy: boolean;
-  sap: {
+  node_count?: number;
+  edge_count?: number;
+  active_disruptions?: number;
+  disruption_ids?: string[];
+  offline_nodes?: string[];
+  offline_edges?: string[];
+  healthy?: boolean;
+  score?: number;
+  health_score?: number;
+  network_reliability_pct?: number;
+  sap?: {
     connected: boolean;
     provider: string;
     last_sync: string | null;
@@ -161,8 +201,10 @@ export interface NetworkHealthDTO {
   };
 }
 
+export type NetworkHealth = NetworkHealthDTO;
+
 export async function getNetworkHealth(): Promise<NetworkHealthDTO> {
-  const { data } = await api.get("/v1/network/health");
+  const { data } = await api.get<NetworkHealthDTO>("/v1/network/health");
   return data;
 }
 
@@ -229,8 +271,6 @@ export async function runScenario(scenario_id: string) {
   return data;
 }
 
-export default api;
-
 /* ---------------- Chatbot ---------------- */
 
 export interface ChatMessageDTO {
@@ -253,3 +293,5 @@ export async function sendChatMessage(payload: ChatRequestDTO): Promise<ChatResp
   const { data } = await api.post<ChatResponseDTO>("/v1/chat", payload);
   return data;
 }
+
+export default api; 

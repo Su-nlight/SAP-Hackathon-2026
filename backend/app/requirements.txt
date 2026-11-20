@@ -13,6 +13,7 @@ langchain-openai
 langchain-anthropic
 langchain-groq
 langchain-ollama
+langgraph-checkpoint-sqlite
 httpx
 sqlite-utils
 # --- dev / test ---

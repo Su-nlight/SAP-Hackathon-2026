@@ -8,7 +8,7 @@ import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 /* =====================================================================
-   Types (public contract unchanged; new props are all optional)
+   Types
    ===================================================================== */
 export interface NodePoint {
   id: string;
@@ -34,8 +34,6 @@ export interface EarthTextures {
   clouds: string;
 }
 
-/* Default textures: three.js example assets. For production, copy them into
-   /public/textures and pass local paths via the `textures` prop. */
 const TEX_BASE = "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/";
 const DEFAULT_TEXTURES: EarthTextures = {
   day: TEX_BASE + "earth_atmos_2048.jpg",
@@ -44,7 +42,6 @@ const DEFAULT_TEXTURES: EarthTextures = {
   clouds: TEX_BASE + "earth_clouds_1024.png",
 };
 
-/* ---- Built-in sample data. It is SIMULATED and is labelled as such in the UI. ---- */
 const DEFAULT_NODES: NodePoint[] = [
   { id: "FRA", name: "Frankfurt Hub", city: "Frankfurt", lat: 50.11, lng: 8.68, status: "active", capacity: 0.88 },
   { id: "RTM", name: "Rotterdam Port", city: "Rotterdam", lat: 51.92, lng: 4.47, status: "disrupted", capacity: 0.14 },
@@ -68,16 +65,11 @@ const DEFAULT_ROUTES: RouteLink[] = [
   { from: "SHA", to: "TYO", status: "active", carrier: "ONE Line" },
 ];
 
-/* =====================================================================
-   Constants, helpers, data adapters
-   ===================================================================== */
 const RADIUS = 2.5;
 const AXIAL_TILT = THREE.MathUtils.degToRad(23.4);
 const SUN_DIR = new THREE.Vector3(5, 1.6, 3).normalize();
 const DEFAULT_CAM_DIST = 6.4;
-/** radians/second: ~90 s per revolution, west to east */
 const EARTH_SPIN = 0.07;
-/** extra drift of the cloud deck relative to the surface */
 const CLOUD_DRIFT = 0.012;
 
 const NODE_COLOR = { active: "#2dd4bf", degraded: "#fbbf24", disrupted: "#fb4f7a" };
@@ -95,7 +87,6 @@ function latLngToVec3(lat: number, lng: number, r: number): THREE.Vector3 {
   );
 }
 
-/* Rough land mask, used only by the offline fallback globe (texture load failure). */
 function isLand(lat: number, lng: number): boolean {
   if (lat > 15 && lat < 72 && lng > -168 && lng < -52) return true;
   if (lat > -56 && lat < 13 && lng > -82 && lng < -34) return true;
@@ -106,7 +97,6 @@ function isLand(lat: number, lng: number): boolean {
   return false;
 }
 
-/* Validate + dedupe incoming nodes. Records with bad coordinates are dropped, never guessed. */
 function sanitizeNodes(nodes: NodePoint[]): { valid: NodePoint[]; dropped: number } {
   const seen = new Set<string>();
   const valid: NodePoint[] = [];
@@ -140,24 +130,30 @@ function sanitizeRoutes(routes: RouteLink[], ids: Set<string>): RouteLink[] {
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(mq.matches);
-    update();
-    mq.addEventListener?.("change", update);
-    return () => mq.removeEventListener?.("change", update);
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    try {
+      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      if (!mq) return;
+      const update = () => setReduced(Boolean(mq.matches));
+      update();
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", update);
+        return () => mq.removeEventListener("change", update);
+      } else if (typeof mq.addListener === "function") {
+        mq.addListener(update);
+        return () => mq.removeListener(update);
+      }
+    } catch {
+      // Graceful fallback
+    }
   }, []);
   return reduced;
 }
 
-/* Quaternion that orients a +Z-facing plane to lie tangent to the sphere at `pos`. */
 function tangentQuat(pos: THREE.Vector3): THREE.Quaternion {
   return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), pos.clone().normalize());
 }
 
-/* =====================================================================
-   Shared mutable control state (read inside useFrame, so no re-renders)
-   ===================================================================== */
 interface Ctrl {
   paused: boolean;
   speed: number;
@@ -165,13 +161,9 @@ interface Ctrl {
   targetSpin: number | null;
   focusDist: number | null;
   showClouds: boolean;
-  /** smoothed 0..1 rotation rate, written by Globe, read by cloud layer */
   rate: number;
 }
 
-/* =====================================================================
-   Shaders
-   ===================================================================== */
 const EARTH_VERT = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vNormalW;
@@ -206,16 +198,14 @@ const EARTH_FRAG = /* glsl */ `
 
     vec3 lit = dayCol * (ambient + (1.0 - ambient) * max(ndl, 0.0));
     vec3 H = normalize(sunDir + V);
-    float s = pow(max(dot(n, H), 0.0), 56.0) * spec * day * 0.85;
+    float s = pow(max(dot(n, H), 0.0), 40.0) * spec * day * 0.85;
     vec3 nightSide = dayCol * 0.03 + nightCol * 1.25;
 
     vec3 col = mix(nightSide, lit, day) + vec3(s);
 
-    // warm twilight band along the terminator
     float tw = smoothstep(-0.05, 0.12, ndl) * (1.0 - smoothstep(0.12, 0.4, ndl));
     col += vec3(0.95, 0.4, 0.15) * tw * 0.07;
 
-    // soft fresnel rim on the lit side
     float f = pow(1.0 - max(dot(n, V), 0.0), 3.0);
     col += vec3(0.25, 0.5, 1.0) * f * 0.3 * day;
 
@@ -231,6 +221,7 @@ const ATMO_VERT = /* glsl */ `
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
+
 const ATMO_FRAG = /* glsl */ `
   uniform vec3 glow;
   uniform float strength;
@@ -241,9 +232,6 @@ const ATMO_FRAG = /* glsl */ `
   }
 `;
 
-/* =====================================================================
-   Error boundary: any texture/WebGL-material failure falls back gracefully
-   ===================================================================== */
 class SafeBoundary extends React.Component<
   { fallback: React.ReactNode; children: React.ReactNode },
   { failed: boolean }
@@ -254,9 +242,6 @@ class SafeBoundary extends React.Component<
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 
-/* =====================================================================
-   Earth layers
-   ===================================================================== */
 function TexturedEarth({ textures, isDark, ctrl }: { textures: EarthTextures; isDark: boolean; ctrl: React.MutableRefObject<Ctrl> }) {
   const [day, night, spec, clouds] = useTexture([textures.day, textures.night, textures.specular, textures.clouds]);
   const cloudRef = useRef<THREE.Mesh>(null);
@@ -284,9 +269,9 @@ function TexturedEarth({ textures, isDark, ctrl }: { textures: EarthTextures; is
     [day, night, spec, isDark]
   );
 
-  // Clouds drift independently of the surface (delta-time based)
   useFrame((_, delta) => {
-    if (cloudRef.current) cloudRef.current.rotation.y += delta * CLOUD_DRIFT * ctrl.current.speed * ctrl.current.rate;
+    const dt = Math.min(Math.max(delta, 0.001), 0.033);
+    if (cloudRef.current) cloudRef.current.rotation.y += dt * CLOUD_DRIFT * ctrl.current.speed * ctrl.current.rate;
     if (cloudRef.current) cloudRef.current.visible = ctrl.current.showClouds;
   });
 
@@ -297,11 +282,11 @@ function TexturedEarth({ textures, isDark, ctrl }: { textures: EarthTextures; is
         onPointerOver={(e) => e.stopPropagation()}
         userData={{ earthSurface: true }}
       >
-        <sphereGeometry args={[RADIUS, 96, 96]} />
+        <sphereGeometry args={[RADIUS, 54, 54]} />
         <shaderMaterial vertexShader={EARTH_VERT} fragmentShader={EARTH_FRAG} uniforms={uniforms} />
       </mesh>
       <mesh ref={cloudRef} raycast={() => null}>
-        <sphereGeometry args={[RADIUS * 1.011, 64, 64]} />
+        <sphereGeometry args={[RADIUS * 1.011, 40, 40]} />
         <meshStandardMaterial
           map={clouds}
           transparent
@@ -315,12 +300,11 @@ function TexturedEarth({ textures, isDark, ctrl }: { textures: EarthTextures; is
   );
 }
 
-/* Offline/failed-texture fallback: the original dot-matrix globe, toned down. */
 function ProceduralEarth({ isDark }: { isDark: boolean }) {
   const { landGeo, oceanGeo } = useMemo(() => {
     const land: number[] = [];
     const ocean: number[] = [];
-    for (let i = 0; i < 16000; i++) {
+    for (let i = 0; i < 9000; i++) {
       const theta = Math.random() * 2 * Math.PI;
       const phi = Math.acos(2 * Math.random() - 1);
       const lat = 90 - (phi * 180) / Math.PI;
@@ -344,7 +328,7 @@ function ProceduralEarth({ isDark }: { isDark: boolean }) {
   return (
     <>
       <mesh onClick={(e) => e.stopPropagation()} onPointerOver={(e) => e.stopPropagation()}>
-        <sphereGeometry args={[RADIUS * 0.99, 64, 64]} />
+        <sphereGeometry args={[RADIUS * 0.99, 40, 40]} />
         <meshStandardMaterial color={isDark ? "#07101d" : "#dbeafe"} roughness={0.5} metalness={0.6} />
       </mesh>
       <points geometry={landGeo}>
@@ -367,7 +351,7 @@ function Atmosphere({ isDark }: { isDark: boolean }) {
   );
   return (
     <mesh scale={1.0} raycast={() => null}>
-      <sphereGeometry args={[RADIUS * 1.07, 64, 64]} />
+      <sphereGeometry args={[RADIUS * 1.07, 44, 44]} />
       <shaderMaterial
         vertexShader={ATMO_VERT}
         fragmentShader={ATMO_FRAG}
@@ -381,9 +365,6 @@ function Atmosphere({ isDark }: { isDark: boolean }) {
   );
 }
 
-/* =====================================================================
-   Network: arcs, markers
-   ===================================================================== */
 function TransitArc({
   p1, p2, status, reduced,
 }: {
@@ -392,24 +373,25 @@ function TransitArc({
   const dotA = useRef<THREE.Mesh>(null);
   const dotB = useRef<THREE.Mesh>(null);
   const progA = useRef(Math.random());
-  const fade = useRef(0); // entry animation
+  const fade = useRef(0);
 
   const { curve, pts } = useMemo(() => {
     const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
     const d = p1.distanceTo(p2);
     mid.normalize().multiplyScalar(RADIUS + 0.1 + Math.min(d * 0.3, 1.2));
     const c = new THREE.QuadraticBezierCurve3(p1, mid, p2);
-    return { curve: c, pts: c.getPoints(56) };
+    return { curve: c, pts: c.getPoints(36) };
   }, [p1, p2]);
 
   const color = ROUTE_COLOR[status];
   const blocked = status === "blocked";
 
   useFrame((_, delta) => {
-    fade.current = Math.min(1, fade.current + delta * 1.4);
+    const dt = Math.min(Math.max(delta, 0.001), 0.033);
+    fade.current = Math.min(1, fade.current + dt * 1.4);
     if (blocked || reduced) return;
     const speed = status === "congested" ? 0.18 : 0.4;
-    progA.current = (progA.current + delta * speed) % 1;
+    progA.current = (progA.current + dt * speed) % 1;
     const pB = (progA.current + 0.5) % 1;
     dotA.current?.position.copy(curve.getPoint(progA.current));
     dotB.current?.position.copy(curve.getPoint(pB));
@@ -433,11 +415,11 @@ function TransitArc({
       {!blocked && (
         <>
           <mesh ref={dotA}>
-            <sphereGeometry args={[0.032, 10, 10]} />
+            <sphereGeometry args={[0.032, 8, 8]} />
             <meshBasicMaterial color={color} toneMapped={false} />
           </mesh>
           <mesh ref={dotB}>
-            <sphereGeometry args={[0.022, 8, 8]} />
+            <sphereGeometry args={[0.022, 6, 6]} />
             <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.7} />
           </mesh>
         </>
@@ -453,14 +435,15 @@ function PulseRing({ position, color, reduced }: { position: THREE.Vector3; colo
 
   useFrame((_, delta) => {
     if (!ref.current || reduced) return;
-    t.current = (t.current + delta * 0.6) % 1;
+    const dt = Math.min(Math.max(delta, 0.001), 0.033);
+    t.current = (t.current + dt * 0.6) % 1;
     ref.current.scale.setScalar(1 + t.current * 2.6);
     (ref.current.material as THREE.MeshBasicMaterial).opacity = 0.65 * (1 - t.current);
   });
 
   return (
     <mesh ref={ref} position={position} quaternion={quat} raycast={() => null}>
-      <ringGeometry args={[0.09, 0.115, 40]} />
+      <ringGeometry args={[0.09, 0.115, 24]} />
       <meshBasicMaterial color={color} transparent opacity={0.6} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
     </mesh>
   );
@@ -479,10 +462,10 @@ function NodeMarker({
   const quat = useMemo(() => tangentQuat(position), [position]);
   const scale = useRef(0);
 
-  // smooth entry + selection emphasis
   useFrame((_, delta) => {
+    const dt = Math.min(Math.max(delta, 0.001), 0.033);
     const target = selected ? 1.35 : 1;
-    scale.current = THREE.MathUtils.damp(scale.current, target, 6, delta);
+    scale.current = THREE.MathUtils.damp(scale.current, target, 6, dt);
     group.current?.scale.setScalar(scale.current);
   });
 
@@ -494,18 +477,18 @@ function NodeMarker({
           onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; onHover(node); }}
           onPointerOut={() => { document.body.style.cursor = "auto"; onHover(null); }}
         >
-          <sphereGeometry args={[0.15, 12, 12]} />
+          <sphereGeometry args={[0.15, 10, 10]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
         <mesh raycast={() => null}>
-          <sphereGeometry args={[0.055, 20, 20]} />
+          <sphereGeometry args={[0.055, 14, 14]} />
           <meshBasicMaterial color={color} toneMapped={false} />
         </mesh>
       </group>
       <Line points={[position, stemEnd]} color={color} lineWidth={1.2} transparent opacity={0.6} />
       {selected && (
         <mesh position={position} quaternion={quat} raycast={() => null}>
-          <ringGeometry args={[0.13, 0.15, 40]} />
+          <ringGeometry args={[0.13, 0.15, 24]} />
           <meshBasicMaterial color="#ffffff" transparent opacity={0.9} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
         </mesh>
       )}
@@ -514,14 +497,12 @@ function NodeMarker({
   );
 }
 
-/* =====================================================================
-   Globe (spin / tilt / focus logic)
-   ===================================================================== */
 function Globe({
-  nodes, routes, selectedId, onSelect, onHover, onBackgroundClick, isDark, textures, ctrl, reduced,
+  nodes, routes, selectedId, onSelect, onHover, isDark, textures, ctrl, reduced,
 }: any) {
   const spinRef = useRef<THREE.Group>(null);
   const spin = useRef(0);
+  const isInitialized = useRef(false);
   const { camera } = useThree();
 
   const nodeMap = useMemo(() => {
@@ -530,7 +511,6 @@ function Globe({
     return m;
   }, [nodes]);
 
-  // Rotate the globe so the selected node faces the camera
   useEffect(() => {
     if (!selectedId) { ctrl.current.targetSpin = null; return; }
     const p = nodeMap.get(selectedId);
@@ -541,16 +521,20 @@ function Globe({
     ctrl.current.focusDist = 5.2;
   }, [selectedId, nodeMap, camera, ctrl]);
 
-  const rate = useRef(1);
+  const rate = useRef(0.1);
 
   useFrame((_, delta) => {
     const c = ctrl.current;
     const g = spinRef.current;
     if (!g) return;
-    const dt = Math.min(delta, 0.1); // a background-tab hiccup must not cause a jump
 
-    // Rotation is ALWAYS integrated. Pause, hover, selection and reduced-motion only
-    // change the target rate, which is eased, so the Earth never freezes by accident.
+    if (!isInitialized.current) {
+      isInitialized.current = true;
+      return;
+    }
+
+    const dt = Math.min(Math.max(delta, 0.001), 0.033);
+
     let target = 1;
     if (c.paused) target = 0;
     else {
@@ -558,24 +542,22 @@ function Globe({
       else if (selectedId) target = 0.45;
       if (reduced) target *= 0.3;
     }
-    rate.current = THREE.MathUtils.damp(rate.current, target, 3, dt);
+    rate.current = THREE.MathUtils.damp(rate.current, target, 2.5, dt);
     c.rate = rate.current;
     spin.current += dt * EARTH_SPIN * c.speed * rate.current;
 
-    // Selecting a hub eases the globe toward it, then hands control straight back
     if (c.targetSpin !== null) {
       const diff = ((c.targetSpin - spin.current + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
-      spin.current += diff * (1 - Math.exp(-4 * dt));
-      if (Math.abs(diff) < 0.02) c.targetSpin = null;
+      spin.current += diff * (1 - Math.exp(-3 * dt));
+      if (Math.abs(diff) < 0.01) c.targetSpin = null;
     }
     g.rotation.y = spin.current;
 
-    // ease camera distance toward the focus distance once
     if (c.focusDist !== null) {
       const dist = camera.position.length();
-      const next = THREE.MathUtils.damp(dist, c.focusDist, 3, dt);
+      const next = THREE.MathUtils.damp(dist, c.focusDist, 2.5, dt);
       camera.position.setLength(next);
-      if (Math.abs(next - c.focusDist) < 0.03) c.focusDist = null;
+      if (Math.abs(next - c.focusDist) < 0.02) c.focusDist = null;
     }
   });
 
@@ -612,19 +594,10 @@ function Globe({
   );
 }
 
-
-/* =====================================================================
-   Deep-space environment
-   - Sky dome (camera-centred, so it can never show an edge or clip):
-     near-black navy, procedural Milky Way band with dust lanes, very faint nebulae.
-   - Three star shells at different real distances (parallax when the camera orbits).
-   - Everything sits >= 45 units from the origin while the camera never goes beyond
-     9.5, so depth testing keeps all of it behind the Earth.
-   ===================================================================== */
-const GAL_N = new THREE.Vector3(0.3, 0.8, 0.52).normalize(); // galactic-plane normal
+const GAL_N = new THREE.Vector3(0.3, 0.8, 0.52).normalize();
 const GAL_C = (() => {
   const v = new THREE.Vector3(0.9, 0.05, -0.35);
-  return v.addScaledVector(GAL_N, -v.dot(GAL_N)).normalize(); // galactic centre, on the plane
+  return v.addScaledVector(GAL_N, -v.dot(GAL_N)).normalize();
 })();
 const f5 = (n: number) => n.toFixed(5);
 
@@ -650,12 +623,11 @@ function buildStarLayer(count: number, rMin: number, rMax: number, bandFrac: num
     const ph = 2 * Math.PI * rnd();
     const s = Math.sqrt(1 - z * z);
     d.set(s * Math.cos(ph), z, s * Math.sin(ph));
-    // a share of stars is squeezed toward the galactic plane, matching the dome's band
     if (rnd() < bandFrac) d.addScaledVector(GAL_N, -d.dot(GAL_N) * 0.82).normalize();
     const r = rMin + (rMax - rMin) * rnd();
     pos.set([d.x * r, d.y * r, d.z * r], i * 3);
 
-    const b = Math.pow(rnd(), 5); // most stars are dim, very few are bright
+    const b = Math.pow(rnd(), 5);
     const intensity = 0.16 + 0.7 * b;
     const t = rnd();
     const c = t < 0.18 ? [0.62, 0.76, 1.0] : t < 0.62 ? [0.95, 0.97, 1.0] : t < 0.88 ? [1.0, 0.94, 0.82] : [1.0, 0.78, 0.6];
@@ -707,11 +679,6 @@ const SKY_FRAG = /* glsl */ `
     p += dot(p, p.yzx + 33.33);
     return fract((p.x + p.y) * p.z);
   }
-  float hash12(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
-  }
   float vnoise(vec3 x) {
     vec3 i = floor(x);
     vec3 f = fract(x);
@@ -723,54 +690,29 @@ const SKY_FRAG = /* glsl */ `
           mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
       f.z);
   }
-  float fbm(vec3 p, int oct) {
-    float a = 0.5;
-    float s = 0.0;
-    for (int i = 0; i < 5; i++) {
-      if (i >= oct) break;
-      s += a * vnoise(p);
-      p = p * 2.03 + vec3(1.7, 9.2, 3.1);
-      a *= 0.5;
-    }
-    return s;
+  float fbm(vec3 p) {
+    return 0.5 * vnoise(p) + 0.25 * vnoise(p * 2.03 + 1.7);
   }
 
   void main() {
     vec3 d = normalize(vDir);
-    float h = dot(d, GN);                       // height above the galactic plane
-    float gc = pow(max(dot(d, GC), 0.0), 2.5);  // brighter toward the galactic centre
+    float h = dot(d, GN);
+    float gc = pow(max(dot(d, GC), 0.0), 2.5);
 
-    // deep navy base, never a flat colour: it carries faint large-scale variation
-    vec3 col = vec3(0.0011, 0.0019, 0.0055) * (0.8 + 0.5 * fbm(d * 1.3 + 4.0, 2));
-
+    vec3 col = vec3(0.0011, 0.0019, 0.0055);
     float band = exp(-h * h / 0.035);
-    if (band > 0.003) {
-      float structure = fbm(d * 3.2 + vec3(0.0, 0.0, 2.0), 4);
-      float fine = fbm(d * 11.0, 3);
-      float lanes = smoothstep(0.46, 0.72, fbm(d * vec3(5.0, 9.0, 5.0) + 7.0, 4));
-      float core = exp(-h * h / 0.007);
-      float glow = band * (0.45 + 0.9 * structure) * (0.55 + 0.9 * gc);
-      glow += core * fine * 0.55 * (0.5 + gc);
-      glow *= 1.0 - 0.78 * lanes * smoothstep(0.0, 0.5, band);
+    if (band > 0.005) {
+      float glow = band * (0.5 + 0.5 * gc);
       vec3 cool = vec3(0.30, 0.37, 0.58);
       vec3 warm = vec3(0.62, 0.52, 0.44);
-      col += mix(cool, warm, gc * core) * glow * 0.045;
+      col += mix(cool, warm, gc) * glow * 0.045;
     }
-
-    // distant, very faint blue-violet dust/nebula
-    float neb = smoothstep(0.52, 0.88, fbm(d * 2.1 + vec3(3.0, 1.0, 5.0), 3));
-    vec3 nebCol = mix(vec3(0.07, 0.11, 0.30), vec3(0.17, 0.09, 0.30), fbm(d * 1.4 + 9.0, 2));
-    col += nebCol * neb * 0.075;
-
-    // dither to avoid banding in the dark gradients
-    col += (hash12(gl_FragCoord.xy) - 0.5) / 255.0 * 0.6;
-
     gl_FragColor = vec4(max(col, 0.0), 1.0);
     #include <colorspace_fragment>
   }
 `;
 
-const DRIFT_RATE = 0.0012; // rad/s, ~87 min per revolution: felt, not seen
+const DRIFT_RATE = 0.0012;
 
 function SpaceBackground({ reduced, lowPerf }: { reduced: boolean; lowPerf: boolean }) {
   const domeRef = useRef<THREE.Mesh>(null);
@@ -780,9 +722,8 @@ function SpaceBackground({ reduced, lowPerf }: { reduced: boolean; lowPerf: bool
 
   const layers = useMemo(
     () => [
-      { geo: buildStarLayer(4500, 300, 380, 0.5, 2.4, 4.0, 1337), count: 4500 },
-      { geo: buildStarLayer(1500, 120, 260, 0.3, 2.8, 5.0, 4242), count: 1500 },
-      { geo: buildStarLayer(220, 45, 100, 0.15, 3.2, 6.0, 9001), count: 220 },
+      { geo: buildStarLayer(2400, 300, 380, 0.5, 2.4, 4.0, 1337), count: 2400 },
+      { geo: buildStarLayer(800, 120, 260, 0.3, 2.8, 5.0, 4242), count: 800 },
     ],
     []
   );
@@ -790,25 +731,21 @@ function SpaceBackground({ reduced, lowPerf }: { reduced: boolean; lowPerf: bool
 
   useEffect(() => () => layers.forEach((l) => l.geo.dispose()), [layers]);
 
-  // adaptive quality: thin the faint far stars when the frame rate drops
-  useEffect(() => {
-    layers.forEach((l, i) => l.geo.setDrawRange(0, Math.floor(l.count * (lowPerf && i === 0 ? 0.55 : 1))));
-  }, [layers, lowPerf]);
-
   useFrame(({ camera }, delta) => {
-    if (!reduced) angle.current += Math.min(delta, 0.1) * DRIFT_RATE;
-    uniforms.uPx.value = gl.getPixelRatio();
+    const dt = Math.min(Math.max(delta, 0.001), 0.033);
+    if (!reduced) angle.current += dt * DRIFT_RATE;
+    uniforms.uPx.value = Math.min(gl.getPixelRatio(), 1.5);
     if (domeRef.current) {
-      domeRef.current.position.copy(camera.position); // always centred on the viewer
+      domeRef.current.position.copy(camera.position);
       domeRef.current.rotation.y = angle.current;
     }
-    if (starsRef.current) starsRef.current.rotation.y = angle.current; // same angle keeps stars on the band
+    if (starsRef.current) starsRef.current.rotation.y = angle.current;
   });
 
   return (
     <>
       <mesh ref={domeRef} renderOrder={-10} frustumCulled={false} raycast={() => null}>
-        <sphereGeometry args={[450, 48, 32]} />
+        <sphereGeometry args={[450, 24, 16]} />
         <shaderMaterial
           vertexShader={SKY_VERT}
           fragmentShader={SKY_FRAG}
@@ -849,6 +786,9 @@ export default function Network3D({
   dataSource,
   textures = DEFAULT_TEXTURES,
   spaceBackground = true,
+  showHubList = false,
+  showControls = true,
+  ambientOnly = false,
 }: {
   nodes?: NodePoint[];
   routes?: RouteLink[];
@@ -856,11 +796,12 @@ export default function Network3D({
   onSelectNode?: (n: NodePoint) => void;
   onClearSelection?: () => void;
   darkMode?: boolean;
-  /** "live" | "simulated". Defaults to "simulated" when the built-in sample data is used. */
   dataSource?: "live" | "simulated";
   textures?: EarthTextures;
-  /** Photoreal deep-space backdrop (stars, Milky Way band, faint nebulae). Default on. */
   spaceBackground?: boolean;
+  showHubList?: boolean;
+  showControls?: boolean;
+  ambientOnly?: boolean;
 }) {
   const reduced = usePrefersReducedMotion();
   const usingDefaults = !nodes || nodes.length === 0;
@@ -884,22 +825,19 @@ export default function Network3D({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | NodePoint["status"]>("all");
   const [listOpen, setListOpen] = useState(true);
-  const [dpr, setDpr] = useState(1.75);
+  const [dpr, setDpr] = useState(1.25);
   const [lowPerf, setLowPerf] = useState(false);
 
   useEffect(() => { setLocalSel(selectedNode ?? null); }, [selectedNode]);
 
-  // If the selected record disappears from the data, drop the selection
   useEffect(() => {
     if (localSel && !finalNodes.some((n) => n.id === localSel.id)) setLocalSel(null);
   }, [finalNodes, localSel]);
 
-  // keep mutable ctrl in sync with UI state
   useEffect(() => { ctrl.current.paused = paused; }, [paused]);
   useEffect(() => { ctrl.current.speed = speed; }, [speed]);
   useEffect(() => { ctrl.current.showClouds = clouds; }, [clouds]);
   useEffect(() => { ctrl.current.hovering = !!hovered; }, [hovered]);
-  // a hovered record that vanishes (data refresh) must not leave hover state stuck
   useEffect(() => { setHovered(null); }, [finalNodes]);
   useEffect(() => () => { if (typeof document !== "undefined") document.body.style.cursor = "auto"; }, []);
 
@@ -916,7 +854,6 @@ export default function Network3D({
     controlsRef.current?.reset?.();
   }, [clear]);
 
-  // Esc clears selection
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") clear(); };
     window.addEventListener("keydown", h);
@@ -966,18 +903,18 @@ export default function Network3D({
       <SafeBoundary
         fallback={
           <div className={`absolute inset-0 flex items-center justify-center p-6 text-sm ${muted}`}>
-            3D view unavailable on this device (WebGL could not start). Use the list to browse hubs.
+            3D view unavailable on this device (WebGL could not start).
           </div>
         }
       >
         <Canvas
-          camera={{ position: [0, 1.2, DEFAULT_CAM_DIST], fov: 42, near: 0.1, far: 1000 }}
+          camera={{ position: [0, 1.2, DEFAULT_CAM_DIST], fov: 42, near: 0.1, far: 800 }}
           frameloop="always"
-          dpr={dpr}
-          gl={{ antialias: true, powerPreference: "high-performance" }}
+          dpr={[1, 1.25]}
+          gl={{ antialias: false, powerPreference: "high-performance" }}
         >
-          <PerformanceMonitor onDecline={() => { setDpr(1); setLowPerf(true); }} onIncline={() => { setDpr(1.75); setLowPerf(false); }} />
-          <ambientLight intensity={darkMode ? 0.12 : 0.5} />
+          <PerformanceMonitor onDecline={() => { setDpr(1); setLowPerf(true); }} onIncline={() => { setDpr(1.25); setLowPerf(false); }} />
+          <ambientLight intensity={darkMode ? 0.15 : 0.5} />
           <directionalLight position={SUN_DIR.clone().multiplyScalar(20)} intensity={darkMode ? 2.2 : 1.6} />
 
           {spaceBackground ? (
@@ -986,12 +923,12 @@ export default function Network3D({
               <SpaceBackground reduced={reduced} lowPerf={lowPerf} />
             </>
           ) : (
-            darkMode && <Stars radius={120} depth={60} count={2600} factor={3.2} saturation={0} fade speed={reduced ? 0 : 0.6} />
+            darkMode && <Stars radius={120} depth={60} count={1600} factor={3.2} saturation={0} fade speed={reduced ? 0 : 0.6} />
           )}
 
           <Globe
-            nodes={finalNodes}
-            routes={finalRoutes}
+            nodes={ambientOnly ? [] : finalNodes}
+            routes={ambientOnly ? [] : finalRoutes}
             selectedId={selected?.id ?? null}
             onSelect={select}
             onHover={setHovered}
@@ -1015,92 +952,96 @@ export default function Network3D({
           />
 
           <EffectComposer multisampling={0}>
-            <Bloom intensity={darkMode ? 0.55 : 0.25} luminanceThreshold={0.7} luminanceSmoothing={0.2} mipmapBlur />
-            <Vignette eskil={false} offset={0.25} darkness={darkMode ? 0.65 : 0.2} />
+            <Bloom intensity={darkMode ? 0.45 : 0.2} luminanceThreshold={0.75} luminanceSmoothing={0.2} />
+            <Vignette eskil={false} offset={0.25} darkness={darkMode ? 0.6 : 0.2} />
           </EffectComposer>
         </Canvas>
       </SafeBoundary>
 
       {/* ---------- Data-source badge ---------- */}
-      <div
-        className={`absolute top-3 right-3 z-20 px-2.5 py-1 rounded-lg border text-[10px] font-mono font-semibold tracking-wider uppercase backdrop-blur-md ${
-          source === "live"
-            ? darkMode ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300" : "bg-emerald-50 border-emerald-300 text-emerald-700"
-            : darkMode ? "bg-amber-950/70 border-amber-500/40 text-amber-300" : "bg-amber-50 border-amber-300 text-amber-700"
-        }`}
-        title={source === "live" ? "Data supplied by the application" : "Built-in sample data. Not live."}
-      >
-        {source === "live" ? "Live data" : "Simulated sample data"}
-      </div>
+      {!ambientOnly && (
+        <div
+          className={`absolute top-3 right-3 z-20 px-2.5 py-1 rounded-lg border text-[10px] font-mono font-semibold tracking-wider uppercase backdrop-blur-md ${
+            source === "live"
+              ? darkMode ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300" : "bg-emerald-50 border-emerald-300 text-emerald-700"
+              : darkMode ? "bg-amber-950/70 border-amber-500/40 text-amber-300" : "bg-amber-50 border-amber-300 text-amber-700"
+          }`}
+          title={source === "live" ? "Data supplied by the application" : "Built-in sample data. Not live."}
+        >
+          {source === "live" ? "Live data" : "Simulated sample data"}
+        </div>
+      )}
 
       {/* ---------- Search / filter / list ---------- */}
-      <div className={`absolute top-3 left-3 z-20 w-60 max-w-[55%] rounded-xl border backdrop-blur-md ${glass}`}>
-        <button
-          className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold"
-          onClick={() => setListOpen((v) => !v)}
-          aria-expanded={listOpen}
-        >
-          <span>Hubs ({filtered.length}/{finalNodes.length})</span>
-          <span className={muted}>{listOpen ? "Hide" : "Show"}</span>
-        </button>
-        {listOpen && (
-          <div className="px-3 pb-3 space-y-2">
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search hubs"
-              aria-label="Search hubs"
-              className={`w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-sky-400 ${
-                darkMode ? "bg-slate-900/70 border-slate-700 placeholder-slate-500" : "bg-white border-sky-200 placeholder-slate-400"
-              }`}
-            />
-            <div className="flex flex-wrap gap-1">
-              {(["all", "active", "degraded", "disrupted"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  aria-pressed={statusFilter === s}
-                  className={`px-2 py-0.5 rounded-md border text-[10px] capitalize ${
-                    statusFilter === s ? (darkMode ? "bg-sky-500/20 border-sky-400/60" : "bg-sky-100 border-sky-400") : btn
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <ul className="max-h-44 overflow-y-auto space-y-0.5 pr-0.5" role="listbox" aria-label="Hubs">
-              {filtered.length === 0 && <li className={`text-xs py-2 ${muted}`}>No hubs match.</li>}
-              {filtered.map((n) => (
-                <li key={n.id}>
+      {showHubList && !ambientOnly && (
+        <div className={`absolute top-3 left-3 z-20 w-60 max-w-[55%] rounded-xl border backdrop-blur-md ${glass}`}>
+          <button
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold"
+            onClick={() => setListOpen((v) => !v)}
+            aria-expanded={listOpen}
+          >
+            <span>Hubs ({filtered.length}/{finalNodes.length})</span>
+            <span className={muted}>{listOpen ? "Hide" : "Show"}</span>
+          </button>
+          {listOpen && (
+            <div className="px-3 pb-3 space-y-2">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search hubs"
+                aria-label="Search hubs"
+                className={`w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-sky-400 ${
+                  darkMode ? "bg-slate-900/70 border-slate-700 placeholder-slate-500" : "bg-white border-sky-200 placeholder-slate-400"
+                }`}
+              />
+              <div className="flex flex-wrap gap-1">
+                {(["all", "active", "degraded", "disrupted"] as const).map((s) => (
                   <button
-                    role="option"
-                    aria-selected={selected?.id === n.id}
-                    onClick={() => select(n)}
-                    onMouseEnter={() => setHovered(n)}
-                    onMouseLeave={() => setHovered(null)}
-                    className={`w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                      selected?.id === n.id
-                        ? darkMode ? "bg-sky-500/20" : "bg-sky-100"
-                        : darkMode ? "hover:bg-slate-800/70" : "hover:bg-sky-50"
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    aria-pressed={statusFilter === s}
+                    className={`px-2 py-0.5 rounded-md border text-[10px] capitalize ${
+                      statusFilter === s ? (darkMode ? "bg-sky-500/20 border-sky-400/60" : "bg-sky-100 border-sky-400") : btn
                     }`}
                   >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: NODE_COLOR[n.status] }} />
-                    <span className="truncate">{n.name}</span>
-                    <span className={`ml-auto font-mono text-[10px] ${muted}`}>{n.id}</span>
+                    {s}
                   </button>
-                </li>
-              ))}
-            </ul>
-            {dropped > 0 && (
-              <div className="text-[10px] text-amber-400">{dropped} record(s) skipped: invalid or duplicate coordinates/id.</div>
-            )}
-          </div>
-        )}
-      </div>
+                ))}
+              </div>
+              <ul className="max-h-44 overflow-y-auto space-y-0.5 pr-0.5" role="listbox" aria-label="Hubs">
+                {filtered.length === 0 && <li className={`text-xs py-2 ${muted}`}>No hubs match.</li>}
+                {filtered.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      role="option"
+                      aria-selected={selected?.id === n.id}
+                      onClick={() => select(n)}
+                      onMouseEnter={() => setHovered(n)}
+                      onMouseLeave={() => setHovered(null)}
+                      className={`w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                        selected?.id === n.id
+                          ? darkMode ? "bg-sky-500/20" : "bg-sky-100"
+                          : darkMode ? "hover:bg-slate-800/70" : "hover:bg-sky-50"
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: NODE_COLOR[n.status] }} />
+                      <span className="truncate">{n.name}</span>
+                      <span className={`ml-auto font-mono text-[10px] ${muted}`}>{n.id}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {dropped > 0 && (
+                <div className="text-[10px] text-amber-400">{dropped} record(s) skipped: invalid or duplicate coordinates/id.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ---------- Hover tooltip ---------- */}
-      {hovered && hovered.id !== selected?.id && (
+      {hovered && hovered.id !== selected?.id && !ambientOnly && (
         <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none px-3 py-2 rounded-xl border backdrop-blur-md shadow-xl ${glass}`}>
           <div className="text-sm font-semibold leading-tight">{hovered.name}</div>
           <div className="flex gap-3 text-[11px] mt-0.5">
@@ -1111,7 +1052,7 @@ export default function Network3D({
       )}
 
       {/* ---------- Selected record panel ---------- */}
-      {selected && (
+      {selected && !ambientOnly && (
         <aside
           className={`absolute bottom-14 right-3 z-20 w-64 max-w-[70%] rounded-xl border backdrop-blur-md shadow-2xl p-3.5 ${glass}`}
           aria-label="Selected hub details"
@@ -1154,43 +1095,47 @@ export default function Network3D({
       )}
 
       {/* ---------- Controls ---------- */}
-      <div className={`absolute bottom-3 right-3 z-20 flex items-center gap-2 px-2.5 py-1.5 rounded-xl border backdrop-blur-md text-xs ${glass}`}>
-        <button onClick={() => setPaused((p) => !p)} className={`px-2 py-0.5 rounded-md border ${btn}`} aria-pressed={paused}>
-          {paused ? "Resume" : "Pause"}
-        </button>
-        <label className="flex items-center gap-1.5">
-          <span className={muted}>Speed</span>
-          <input
-            type="range" min={0.25} max={3} step={0.25} value={speed}
-            onChange={(e) => setSpeed(parseFloat(e.target.value))}
-            aria-label="Rotation speed" className="w-16 accent-sky-400"
-          />
-        </label>
-        <button onClick={() => setClouds((c) => !c)} className={`px-2 py-0.5 rounded-md border ${btn}`} aria-pressed={clouds}>
-          Clouds
-        </button>
-        <button onClick={resetView} className={`px-2 py-0.5 rounded-md border ${btn}`}>Reset</button>
-      </div>
+      {showControls && !ambientOnly && (
+        <div className={`absolute bottom-3 right-3 z-20 flex items-center gap-2 px-2.5 py-1.5 rounded-xl border backdrop-blur-md text-xs ${glass}`}>
+          <button onClick={() => setPaused((p) => !p)} className={`px-2 py-0.5 rounded-md border ${btn}`} aria-pressed={paused}>
+            {paused ? "Resume" : "Pause"}
+          </button>
+          <label className="flex items-center gap-1.5">
+            <span className={muted}>Speed</span>
+            <input
+              type="range" min={0.25} max={3} step={0.25} value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              aria-label="Rotation speed" className="w-16 accent-sky-400"
+            />
+          </label>
+          <button onClick={() => setClouds((c) => !c)} className={`px-2 py-0.5 rounded-md border ${btn}`} aria-pressed={clouds}>
+            Clouds
+          </button>
+          <button onClick={resetView} className={`px-2 py-0.5 rounded-md border ${btn}`}>Reset</button>
+        </div>
+      )}
 
       {/* ---------- Legend ---------- */}
-      <div className={`absolute bottom-3 left-3 z-10 flex flex-col gap-1 px-3 py-2 rounded-xl border backdrop-blur-md text-[11px] ${glass}`}>
-        <div className="flex items-center gap-3">
-          <span className={`${muted} font-mono uppercase text-[9px] w-10`}>Hubs</span>
-          {(["active", "degraded", "disrupted"] as const).map((s) => (
-            <span key={s} className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full" style={{ background: NODE_COLOR[s] }} /> {STATUS_LABEL[s]}
-            </span>
-          ))}
+      {!ambientOnly && (
+        <div className={`absolute bottom-3 left-3 z-10 flex flex-col gap-1 px-3 py-2 rounded-xl border backdrop-blur-md text-[11px] ${glass}`}>
+          <div className="flex items-center gap-3">
+            <span className={`${muted} font-mono uppercase text-[9px] w-10`}>Hubs</span>
+            {(["active", "degraded", "disrupted"] as const).map((s) => (
+              <span key={s} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full" style={{ background: NODE_COLOR[s] }} /> {STATUS_LABEL[s]}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`${muted} font-mono uppercase text-[9px] w-10`}>Routes</span>
+            {(["active", "congested", "blocked"] as const).map((s) => (
+              <span key={s} className="flex items-center gap-1">
+                <span className="w-3 h-0.5" style={{ background: ROUTE_COLOR[s] }} /> {ROUTE_LABEL[s]}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className={`${muted} font-mono uppercase text-[9px] w-10`}>Routes</span>
-          {(["active", "congested", "blocked"] as const).map((s) => (
-            <span key={s} className="flex items-center gap-1">
-              <span className="w-3 h-0.5" style={{ background: ROUTE_COLOR[s] }} /> {ROUTE_LABEL[s]}
-            </span>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

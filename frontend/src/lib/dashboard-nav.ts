@@ -1,17 +1,13 @@
-export type Role = "Manager" | "Operations" | "Customer" | "Admin";
+export type Role = "Manager" | "Operations" | "Admin";
 
 export interface NavItem {
   label: string;
-  /** Present once the page is actually built; absent items render as "Soon". */
   href?: string;
 }
 
-// Manager's five modules are wired to real routes + live backend endpoints.
-// Other roles still list their intended modules but aren't built yet —
-// those render as disabled "Soon" entries in the sidebar.
 export const ROLE_NAV: Record<Role, NavItem[]> = {
   Manager: [
-    { label: "Dashboard", href: "/dashboard" },
+    { label: "Dashboard", href: "/dashboard?role=Manager" },
     { label: "Disruptions", href: "/dashboard/disruptions" },
     { label: "Network Map", href: "/dashboard/network-map" },
     { label: "AI Recovery", href: "/dashboard/ai-recovery" },
@@ -19,30 +15,21 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Analytics", href: "/dashboard/analytics" },
   ],
   Operations: [
-    { label: "Dashboard", href: "/dashboard" },
-    { label: "Live Shipments" },
-    { label: "Route Management" },
-    { label: "Network Monitor" },
-    { label: "Alerts" },
-  ],
-  Customer: [
-    { label: "Track Shipment" },
-    { label: "Shipment Details" },
-    { label: "Live Map" },
-    { label: "Delivery Updates" },
+    { label: "Console Overview", href: "/operations" },
+    { label: "Live Shipments", href: "/operations" },
+    { label: "Route Management", href: "/operations" },
+    { label: "Network Monitor", href: "/operations" },
+    { label: "Alerts", href: "/operations" },
   ],
   Admin: [
-    { label: "SAP System" },
-    { label: "Integration Monitor" },
-    { label: "Audit Log" },
+    { label: "SAP Gateway Sync", href: "/dashboard?role=Admin&tab=sync" },
+    { label: "Tenant Keyrings", href: "/dashboard?role=Admin&tab=keyrings" },
+    { label: "System Audit Trail", href: "/dashboard?role=Admin&tab=audit" },
   ],
 };
 
 /** Section title shown in the top bar for a given pathname. */
 export function sectionTitleForPath(pathname: string): string {
-  const match = Object.values(ROLE_NAV)
-    .flat()
-    .find((item) => item.href === pathname);
-  if (match) return match.label;
+  if (pathname.startsWith("/operations")) return "Operations Console";
   return "Dashboard";
 }

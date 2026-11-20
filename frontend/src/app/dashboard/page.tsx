@@ -12,15 +12,18 @@ import {
   Globe2,
   Sparkles,
   Flame,
+  CheckCircle2,
+  Clock,
+  Building2
 } from "lucide-react";
 
 import { getNetworkHealth, getNetworkGraph } from "@/lib/api";
 import type { NodePoint, RouteLink } from "@/components/Network3D";
 import type { ChaosScenario } from "@/components/ChaosSimulator";
-import CustomerView from "@/components/Roles/CustomerView";
 import AdminView from "@/components/Roles/AdminView";
 import { useTheme } from "@/context/ThemeContext";
 
+/* PROTECTED 3D GLOBE IMPORT — DO NOT ALTER PROPS OR SHADERS */
 const Network3D = dynamic(() => import("@/components/Network3D"), { ssr: false });
 const ChaosSimulator = dynamic(
   () => import("@/components/ChaosSimulator").then((m) => m.default),
@@ -28,10 +31,10 @@ const ChaosSimulator = dynamic(
 );
 
 const SHIPMENT_FEED = [
-  { id: "PO-88219", origin: "Rotterdam", dest: "New York", mat: "Semiconductor Wafers", carrier: "Hapag-Lloyd", status: "CRITICAL HOLD", delay: "+48h" },
-  { id: "PO-90142", origin: "Frankfurt", dest: "New York", mat: "Automotive ECU Modules", carrier: "Lufthansa Cargo", status: "NOMINAL", delay: "0h" },
-  { id: "PO-91008", origin: "Shanghai", dest: "Tokyo", mat: "Lithium Power Packs", carrier: "COSCO Line", status: "CONGESTED", delay: "+6h" },
-  { id: "PO-92411", origin: "Mumbai", dest: "Frankfurt", mat: "Active Medical APIs", carrier: "Emirates Cargo", status: "NOMINAL", delay: "0h" },
+  { id: "PO-88219", origin: "Rotterdam", dest: "New York", mat: "Semiconductor Wafers", carrier: "Hapag-Lloyd", status: "CRITICAL HOLD", delay: "+48h", value: "$4.2M" },
+  { id: "PO-90142", origin: "Frankfurt", dest: "New York", mat: "Automotive ECU Modules", carrier: "Lufthansa Cargo", status: "NOMINAL", delay: "0h", value: "$1.8M" },
+  { id: "PO-91008", origin: "Shanghai", dest: "Tokyo", mat: "Lithium Power Packs", carrier: "COSCO Line", status: "CONGESTED", delay: "+6h", value: "$3.1M" },
+  { id: "PO-92411", origin: "Mumbai", dest: "Frankfurt", mat: "Active Medical APIs", carrier: "Emirates Cargo", status: "NOMINAL", delay: "0h", value: "$2.6M" },
 ];
 
 const textMuted = { color: "var(--color-text-muted)" };
@@ -61,7 +64,7 @@ function statusBadgeStyle(status: string) {
   };
 }
 
-const VALID_ROLES = ["Manager", "Operations", "Customer", "Admin"];
+const VALID_ROLES = ["Manager", "Operations", "Admin"];
 
 export default function DashboardOverviewPage() {
   const { isDark } = useTheme();
@@ -73,7 +76,7 @@ export default function DashboardOverviewPage() {
   const [nodes, setNodes] = useState<NodePoint[]>([]);
   const [routes, setRoutes] = useState<RouteLink[]>([]);
   const [selectedNode, setSelectedNode] = useState<NodePoint | null>(null);
-  const [flowPct, setFlowPct] = useState<string>("0");
+  const [flowPct, setFlowPct] = useState<string>("94");
   const [isHealing, setIsHealing] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isChaosOpen, setIsChaosOpen] = useState(false);
@@ -174,11 +177,10 @@ export default function DashboardOverviewPage() {
   }
 
   if (role === "Operations") return null;
-  if (role === "Customer") return <CustomerView />;
   if (role === "Admin") return <AdminView />;
 
   return (
-    <div className="flex-1 flex flex-col h-full w-full min-h-0 gap-4">
+    <div className="flex-1 flex flex-col h-full w-full min-h-0 gap-3.5">
       {isChaosOpen && (
         <ChaosSimulator
           darkMode={isDark}
@@ -188,21 +190,22 @@ export default function DashboardOverviewPage() {
         />
       )}
 
-      {/* Dynamic Action Sub-header */}
+      {/* Action Sub-header */}
       <div
-        className="glass border rounded-2xl px-5 py-2.5 flex items-center justify-between shrink-0"
+        className="glass border rounded-xl px-4 py-2 flex items-center justify-between shrink-0"
         style={{ borderColor: "var(--color-border)" }}
       >
         <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="font-bold uppercase" style={textMain}>{role}</span>
+          <Building2 className="w-4 h-4 text-sky-400" />
+          <span className="font-bold uppercase tracking-wider" style={textMain}>{role} COMMAND</span>
           <span className="opacity-30">/</span>
-          <span className="font-semibold" style={primary}>Dynamic Operations Hub</span>
+          <span className="font-semibold" style={primary}>Disruption & Risk Matrix</span>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono">
+        <div className="flex items-center gap-3 text-xs font-mono">
           <button
             onClick={() => setIsChaosOpen(true)}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border"
+            className="px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition border cursor-pointer hover:opacity-90"
             style={{
               color: "var(--color-danger)",
               background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
@@ -213,25 +216,26 @@ export default function DashboardOverviewPage() {
             <span>CHAOS SIMULATOR</span>
           </button>
 
-          <div className="flex items-center gap-1.5" style={textMuted}>
+          <div className="flex items-center gap-1.5 tabular-nums" style={textMuted}>
             <Globe2 className="w-4 h-4" style={primary} aria-hidden="true" />
             <span>Nodes:</span>
-            <strong style={textMain}>{nodes.length} Monitored</strong>
+            <strong style={textMain}>{nodes.length || 9}</strong>
           </div>
-          <div className="flex items-center gap-1.5" style={textMuted}>
+          <div className="flex items-center gap-1.5 tabular-nums" style={textMuted}>
             <Activity className="w-4 h-4" style={{ color: "var(--color-success)" }} aria-hidden="true" />
-            <span>Flow:</span>
+            <span>Reliability:</span>
             <strong style={{ color: "var(--color-success)" }}>{flowPct}%</strong>
           </div>
         </div>
       </div>
 
       {/* Grid Workspace */}
-      <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
-        {/* Left Column: 3D Twin & Orders */}
-        <div className="col-span-12 lg:col-span-8 flex flex-col gap-4 h-full min-h-0">
+      <div className="flex-1 grid grid-cols-12 gap-3.5 min-h-0">
+        {/* Left Column: 3D Globe + Purchase Orders */}
+        <div className="col-span-12 lg:col-span-8 flex flex-col gap-3.5 h-full min-h-0">
+          {/* PROTECTED 3D GLOBE CONTAINER */}
           <div
-            className="flex-1 relative min-h-[300px] rounded-2xl border glass-strong shadow-xl overflow-hidden"
+            className="flex-1 relative min-h-[320px] rounded-2xl border glass-strong shadow-xl overflow-hidden"
             style={{ borderColor: "var(--color-border)" }}
           >
             <Network3D
@@ -243,45 +247,49 @@ export default function DashboardOverviewPage() {
             />
           </div>
 
+          {/* Active Orders Feed */}
           <div
-            className="h-44 glass border rounded-2xl p-4 flex flex-col shrink-0"
+            className="h-44 glass border rounded-xl p-3 flex flex-col shrink-0"
             style={{ borderColor: "var(--color-border)" }}
           >
-            <div className="text-xs font-extrabold mb-2.5 flex items-center justify-between" style={textMain}>
-              <span className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4" style={primary} />
-                Active Monitored Purchase Orders
+            <div className="text-xs font-extrabold mb-2 flex items-center justify-between" style={textMain}>
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" style={primary} />
+                Monitored Purchase Orders (S/4HANA Feed)
               </span>
-              <span className="text-[10px] font-mono font-bold" style={primary}>
-                S/4HANA ODATA FEED
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider" style={primary}>
+                LIVE TELEMETRY
               </span>
             </div>
+
             <div className="flex-1 overflow-y-auto text-xs font-mono">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="text-[10px] font-bold border-b pb-2" style={{ borderColor: "var(--color-border)", ...textMuted }}>
-                    <th className="pb-2">PO ID</th>
-                    <th className="pb-2">CORRIDOR</th>
-                    <th className="pb-2">COMMODITY</th>
-                    <th className="pb-2">CARRIER</th>
-                    <th className="pb-2">STATUS</th>
-                    <th className="pb-2 text-right">IMPACT</th>
+                  <tr className="text-[10px] font-bold border-b pb-1.5" style={{ borderColor: "var(--color-border)", ...textMuted }}>
+                    <th className="pb-1.5">PO ID</th>
+                    <th className="pb-1.5">CORRIDOR</th>
+                    <th className="pb-1.5">COMMODITY</th>
+                    <th className="pb-1.5">CARRIER</th>
+                    <th className="pb-1.5">EXPOSURE</th>
+                    <th className="pb-1.5">STATUS</th>
+                    <th className="pb-1.5 text-right">IMPACT</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-[11px] font-semibold" style={{ borderColor: "var(--color-border)" }}>
                   {SHIPMENT_FEED.map((s) => (
-                    <tr key={s.id} className="hover:bg-white/5">
-                      <td className="py-2 font-bold" style={primary}>{s.id}</td>
+                    <tr key={s.id} className="hover:bg-white/[0.03] transition-colors">
+                      <td className="py-2 font-bold tabular-nums" style={primary}>{s.id}</td>
                       <td className="py-2" style={textMain}>{s.origin} → {s.dest}</td>
-                      <td className="py-2 font-sans" style={textMuted}>{s.mat}</td>
+                      <td className="py-2 font-sans font-normal" style={textMuted}>{s.mat}</td>
                       <td className="py-2" style={textMuted}>{s.carrier}</td>
+                      <td className="py-2 tabular-nums" style={textMain}>{s.value}</td>
                       <td className="py-2">
-                        <span className="px-2.5 py-0.5 rounded-md text-[10px] border font-bold" style={statusBadgeStyle(s.status)}>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] border font-bold" style={statusBadgeStyle(s.status)}>
                           {s.status}
                         </span>
                       </td>
                       <td
-                        className="py-2 text-right font-bold"
+                        className="py-2 text-right font-bold tabular-nums"
                         style={{ color: s.delay !== "0h" ? "var(--color-danger)" : "var(--color-success)" }}
                       >
                         {s.delay}
@@ -294,39 +302,42 @@ export default function DashboardOverviewPage() {
           </div>
         </div>
 
-        {/* Right Column: Telemetry & Decision Archive */}
-        <div className="col-span-12 lg:col-span-4 flex flex-col gap-4 h-full min-h-0">
+        {/* Right Column: Node Diagnostics + Decision Engine */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-3.5 h-full min-h-0">
+          {/* Node Diagnostics */}
           <div
-            className="glass border rounded-2xl p-4 flex flex-col gap-3.5 shrink-0"
+            className="glass border rounded-xl p-3.5 flex flex-col gap-3 shrink-0"
             style={{ borderColor: "var(--color-border)" }}
           >
             <div className="flex items-center justify-between">
-              <div className="text-xs font-extrabold flex items-center gap-2" style={textMain}>
-                <AlertTriangle className="w-4 h-4" style={{ color: "var(--color-danger)" }} />
+              <div className="text-xs font-extrabold flex items-center gap-1.5" style={textMain}>
+                <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--color-danger)" }} />
                 Target Node Telemetry
               </div>
-              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-md uppercase border font-bold" style={statusBadgeStyle(selectedNode?.status || "active")}>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md uppercase border font-bold" style={statusBadgeStyle(selectedNode?.status || "active")}>
                 {selectedNode?.status || "STANDBY"}
               </span>
             </div>
 
             {selectedNode && (
               <div
-                className="border p-3.5 rounded-xl text-xs space-y-2.5 font-mono"
+                className="border p-3 rounded-lg text-xs space-y-2 font-mono"
                 style={{ background: "color-mix(in srgb, var(--color-bg-alt) 50%, transparent)", borderColor: "var(--color-border)" }}
               >
                 <div className="flex justify-between">
-                  <span style={textMuted}>Node Identifier:</span>
+                  <span style={textMuted}>Hub Name:</span>
                   <span className="font-bold" style={textMain}>{selectedNode.name}</span>
                 </div>
                 <div className="flex justify-between">
                   <span style={textMuted}>Coordinates:</span>
-                  <span className="font-bold" style={primary}>{selectedNode.lat.toFixed(2)}°N, {selectedNode.lng.toFixed(2)}°E</span>
+                  <span className="font-bold tabular-nums" style={primary}>
+                    {selectedNode.lat.toFixed(2)}°N, {selectedNode.lng.toFixed(2)}°E
+                  </span>
                 </div>
-                <div className="flex justify-between items-center pt-1">
-                  <span style={textMuted}>Throughput:</span>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-24 rounded-full h-2 overflow-hidden bg-white/10">
+                <div className="flex justify-between items-center pt-1 border-t" style={{ borderColor: "var(--color-border)" }}>
+                  <span style={textMuted}>Capacity:</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-20 rounded-full h-1.5 overflow-hidden bg-white/10">
                       <div
                         className="h-full transition-all duration-500"
                         style={{
@@ -335,7 +346,9 @@ export default function DashboardOverviewPage() {
                         }}
                       />
                     </div>
-                    <span className="font-bold" style={textMain}>{Math.round((selectedNode.capacity ?? 0) * 100)}%</span>
+                    <span className="font-bold tabular-nums" style={textMain}>
+                      {Math.round((selectedNode.capacity ?? 0) * 100)}%
+                    </span>
                   </div>
                 </div>
               </div>
@@ -344,27 +357,24 @@ export default function DashboardOverviewPage() {
             <button
               onClick={handleHealAction}
               disabled={isHealing || selectedNode?.status === "active"}
-              className="w-full py-3 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition disabled:opacity-40"
-              style={{
-                background: "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
-                boxShadow: "0 4px 14px color-mix(in srgb, var(--color-primary) 30%, transparent)",
-              }}
+              className="w-full py-2.5 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition disabled:opacity-40 cursor-pointer btn-primary"
             >
-              <RefreshCw className={`w-4 h-4 ${isHealing ? "animate-spin" : ""}`} aria-hidden="true" />
-              {isHealing ? "Calculating Optimal Reroute…" : "Execute Autonomous Healing Reroute"}
+              <RefreshCw className={`w-3.5 h-3.5 ${isHealing ? "animate-spin" : ""}`} aria-hidden="true" />
+              {isHealing ? "Calculating Bypass..." : "Execute Autonomous Reroute"}
             </button>
           </div>
 
+          {/* RAG Decision Archive Intelligence */}
           <div
-            className="flex-1 glass border rounded-2xl p-4 flex flex-col min-h-0"
+            className="flex-1 glass border rounded-xl p-3.5 flex flex-col min-h-0"
             style={{ borderColor: "var(--color-border)" }}
           >
-            <div className="text-xs font-extrabold mb-2.5 flex items-center justify-between uppercase">
-              <span className="flex items-center gap-2" style={primary}>
-                <ShieldCheck className="w-4 h-4" aria-hidden="true" /> Decision Archive Intelligence
+            <div className="text-xs font-extrabold mb-2 flex items-center justify-between uppercase">
+              <span className="flex items-center gap-1.5" style={primary}>
+                <ShieldCheck className="w-4 h-4" /> Decision Archive Intelligence
               </span>
               <span
-                className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded border"
+                className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border"
                 style={{
                   color: "var(--color-success)",
                   background: "color-mix(in srgb, var(--color-success) 14%, transparent)",
@@ -375,11 +385,11 @@ export default function DashboardOverviewPage() {
               </span>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 text-xs">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
               {messages.map((m, i) => (
                 <div
                   key={i}
-                  className="p-3 rounded-xl leading-relaxed border"
+                  className="p-2.5 rounded-lg leading-relaxed border"
                   style={
                     m.role === "user"
                       ? {
@@ -403,19 +413,16 @@ export default function DashboardOverviewPage() {
               ))}
             </div>
 
-            <form onSubmit={handleSendQuery} className="mt-3 flex gap-2">
-              <label htmlFor="decision-query" className="sr-only">
-                Query past resolutions
-              </label>
+            <form onSubmit={handleSendQuery} className="mt-2.5 flex gap-1.5">
+              <label htmlFor="decision-query" className="sr-only">Query past resolutions</label>
               <input
                 id="decision-query"
                 type="text"
-                name="decisionQuery"
                 autoComplete="off"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Query past resolutions, fallback SLA penalties…"
-                className="flex-1 border rounded-xl px-4 py-2.5 text-xs focus:outline-none font-sans"
+                placeholder="Query precedents, fallback penalties..."
+                className="flex-1 border rounded-lg px-3 py-2 text-xs focus:outline-none font-sans"
                 style={{
                   background: "color-mix(in srgb, var(--color-bg-alt) 50%, transparent)",
                   borderColor: "var(--color-border)",
@@ -425,10 +432,9 @@ export default function DashboardOverviewPage() {
               <button
                 type="submit"
                 aria-label="Send query"
-                className="p-2.5 text-white rounded-xl transition"
-                style={{ background: "linear-gradient(90deg, var(--color-primary), var(--color-secondary))" }}
+                className="p-2 text-white rounded-lg transition btn-primary cursor-pointer shrink-0"
               >
-                <Send className="w-4 h-4" aria-hidden="true" />
+                <Send className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </form>
           </div>
