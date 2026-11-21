@@ -1,21 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 
-export default function ThemeToggle({ className = "" }: { className?: string }) {
+export default function ThemeToggle() {
   const { isDark, toggleTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <button
+      type="button"
       onClick={toggleTheme}
       title="Toggle theme"
       aria-label="Toggle theme"
-      className={`glass p-2 rounded-xl transition hover:scale-105 active:scale-95 ${className}`}
-      style={{ color: "var(--color-primary)" }}
+      className="p-2 rounded-lg border glass transition hover:opacity-80 cursor-pointer flex items-center justify-center"
+      style={{ color: "var(--color-primary)", borderColor: "var(--color-border)" }}
     >
-      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      {mounted ? (
+        isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />
+      ) : (
+        <span className="w-4 h-4 block" aria-hidden="true" />
+      )}
     </button>
   );
 }

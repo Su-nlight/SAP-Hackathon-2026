@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+"use client";
+
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 import FloatingChatbot from "@/components/chatbot/FloatingChatbot";
+import { usePathname } from "next/navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,13 +16,19 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "SelfHeal SC | Autonomous Supply Chain",
-  description:
-    "Self-healing supply chain operations console powered by AI.",
-};
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+  // Allow chatbot only on dashboard, operations, or admin routes
+  const showChatbot =
+    pathname?.startsWith("/dashboard") ||
+    pathname?.startsWith("/operations") ||
+    pathname?.startsWith("/admin");
+
   return (
     <html
       lang="en"
@@ -29,7 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider>{children}</ThemeProvider>
-        <FloatingChatbot />
+        {showChatbot && <FloatingChatbot />}
       </body>
     </html>
   );
